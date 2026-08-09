@@ -1,0 +1,14 @@
+{
+  "name": "ubhayaab-github-io",
+  "private": true,
+  "type": "module",
+  "description": "Landing page. Hand-rolled WebGL2, no framework, no build step, five playable games built out of measured data.",
+  "scripts": {
+    "build": "node build.mjs",
+    "serve": "node serve.mjs",
+    "test": "node tools/test-games.mjs http://127.0.0.1:4199/"
+  },
+  "devDependencies": {
+    "playwright": "^1.49.0"
+  }
+}

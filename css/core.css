@@ -1,0 +1,593 @@
+/* ==========================================================================
+   Design tokens. Deliberately the same palette as the profile README so the
+   two read as one system rather than two projects.
+   ========================================================================== */
+:root {
+  --ink: #06070b;
+  --panel: #0b0d13;
+  --panel-2: #101420;
+  --line: #1b2130;
+  --line-soft: #141926;
+  --text: #edf0f7;
+  --dim: #7c8699;
+  --faint: #3c4457;
+  --accent: #ff7a18;
+  --accent-2: #4d7cfe;
+  --good: #38d9a9;
+
+  --mono: ui-monospace, "SF Mono", "Cascadia Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+  --sans: system-ui, -apple-system, "Segoe UI", Inter, Roboto, "Helvetica Neue", Arial, sans-serif;
+
+  --gutter: clamp(20px, 5vw, 72px);
+  --maxw: 1220px;
+  --r: 14px;
+
+  /* Motion scale. The three-state motion control writes this, so every
+     transition in the sheet responds to it without a single media query. */
+  --mo: 1;
+  --dur-1: calc(180ms * var(--mo));
+  --dur-2: calc(420ms * var(--mo));
+  --dur-3: calc(900ms * var(--mo));
+  --ease: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root { --mo: 0.001; }
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html {
+  background: var(--ink);
+  color-scheme: dark;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--ink);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 16px;
+  line-height: 1.6;
+  overflow-x: hidden;
+  font-synthesis-weight: none;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Skip link is the first tab stop, and the motion control is the second.
+   Both must be reachable before any decorative surface. */
+.skip {
+  position: fixed;
+  top: 0; left: 0;
+  z-index: 300;
+  padding: 12px 18px;
+  background: var(--accent);
+  color: #000;
+  font: 600 13px var(--mono);
+  transform: translateY(-110%);
+  transition: transform var(--dur-1) var(--ease);
+}
+.skip:focus-visible { transform: none; }
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: 3px;
+}
+
+a { color: inherit; }
+
+/* ==========================================================================
+   Layout
+   ========================================================================== */
+.wrap {
+  width: 100%;
+  max-width: var(--maxw);
+  margin-inline: auto;
+  padding-inline: var(--gutter);
+}
+
+section {
+  position: relative;
+  padding-block: clamp(84px, 12vh, 160px);
+}
+
+.eyebrow {
+  font: 500 11px/1 var(--mono);
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--dim);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 26px;
+}
+.eyebrow::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, var(--line), transparent);
+}
+
+h2 {
+  font-size: clamp(30px, 4.6vw, 54px);
+  line-height: 1.04;
+  letter-spacing: -0.03em;
+  font-weight: 620;
+  margin: 0 0 20px;
+  text-wrap: balance;
+}
+
+.lede {
+  font-size: clamp(15px, 1.6vw, 18px);
+  color: var(--dim);
+  max-width: 62ch;
+  margin: 0 0 44px;
+  text-wrap: pretty;
+}
+
+.mono { font-family: var(--mono); }
+.accent { color: var(--accent); }
+
+/* ==========================================================================
+   Hero
+   ========================================================================== */
+#hero {
+  min-height: 100svh; /* never dvh: on mobile Safari it fires a resize storm
+                         against the WebGL canvas on every URL-bar movement */
+  display: grid;
+  align-content: center;
+  padding-block: 0;
+  overflow: hidden;
+}
+
+#gl {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+  /* Poster gradient is visible before WebGL initialises and is the permanent
+     fallback when the context is refused. No empty hero, ever. */
+  background:
+    radial-gradient(120% 80% at 18% 22%, rgba(255, 122, 24, 0.16), transparent 62%),
+    radial-gradient(90% 70% at 82% 78%, rgba(77, 124, 254, 0.13), transparent 60%),
+    var(--ink);
+}
+
+#hero .wrap { position: relative; z-index: 1; }
+
+.mark {
+  width: min(560px, 82vw);
+  height: auto;
+  display: block;
+  margin-bottom: 28px;
+}
+.mark path {
+  fill: none;
+  stroke: var(--text);
+  stroke-width: 8.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 100;
+  stroke-dashoffset: 0;
+  animation: draw calc(var(--dur-3) * 1.15) var(--ease) backwards,
+             ink var(--dur-2) ease calc(var(--dur-3) * 1.15) backwards;
+}
+@keyframes draw { from { stroke-dashoffset: 100; } }
+@keyframes ink { from { stroke: var(--accent); } }
+
+.tagline {
+  font: 400 clamp(16px, 2.2vw, 23px)/1.45 var(--mono);
+  letter-spacing: -0.01em;
+  margin: 0 0 14px;
+  max-width: 30ch;
+}
+.tagline b { color: var(--accent); font-weight: 400; }
+
+.sub {
+  font: 400 clamp(12px, 1.3vw, 14px)/1.6 var(--mono);
+  color: var(--dim);
+  margin: 0 0 40px;
+  max-width: 54ch;
+}
+
+.ticker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 34px;
+  padding-top: 26px;
+  border-top: 1px solid var(--line);
+  max-width: 760px;
+}
+.ticker div { min-width: 96px; }
+.ticker dt {
+  font: 500 10px/1 var(--mono);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--faint);
+  margin-bottom: 7px;
+}
+.ticker dd {
+  margin: 0;
+  font: 500 clamp(19px, 2.4vw, 26px)/1 var(--mono);
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+}
+
+.cue {
+  position: absolute;
+  bottom: 26px;
+  left: 50%;
+  translate: -50% 0;
+  font: 500 10px/1 var(--mono);
+  letter-spacing: 0.2em;
+  color: var(--faint);
+  text-transform: uppercase;
+  animation: bob 2.6s ease-in-out infinite;
+  z-index: 1;
+}
+@keyframes bob { 0%, 100% { translate: -50% 0; } 50% { translate: -50% 7px; } }
+
+/* ==========================================================================
+   Reveal on scroll. IntersectionObserver adds .in; the resting state is the
+   visible one so a failed observer leaves content readable, not hidden.
+   ========================================================================== */
+/* The hidden state is opt-in, scoped to .js, which an inline script in <head>
+   sets. Default is visible. If the script never runs, or IntersectionObserver
+   is missing, or a JS error kills boot.js, the page is a plain readable
+   document instead of six screens of invisible text. */
+.rise {
+  transition: opacity var(--dur-2) var(--ease-out), transform var(--dur-2) var(--ease-out);
+  transition-delay: var(--d, 0ms);
+}
+.js .rise { opacity: 0; transform: translateY(18px); }
+.js .rise.in { opacity: 1; transform: none; }
+@media print { .js .rise { opacity: 1 !important; transform: none !important; } }
+
+/* ==========================================================================
+   Cards, grids, panels
+   ========================================================================== */
+.grid {
+  display: grid;
+  gap: 18px;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
+}
+
+.card {
+  position: relative;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  padding: 26px 26px 22px;
+  overflow: hidden;
+  transition: border-color var(--dur-1) var(--ease), transform var(--dur-1) var(--ease);
+}
+.card::before {
+  /* Spotlight follows the pointer. Both custom properties are written from a
+     single delegated handler on the grid, and the rect is read once on enter
+     rather than on every move. */
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  background: radial-gradient(220px circle at var(--mx, 50%) var(--my, 50%), rgba(255, 122, 24, 0.09), transparent 65%);
+  opacity: 0;
+  transition: opacity var(--dur-1) var(--ease);
+  pointer-events: none;
+}
+.card:hover { border-color: #2a3346; }
+.card:hover::before { opacity: 1; }
+
+.card h3 {
+  font-size: 21px;
+  letter-spacing: -0.02em;
+  margin: 0 0 6px;
+  font-weight: 600;
+}
+.card p { color: var(--dim); font-size: 14.5px; margin: 0 0 18px; }
+
+.spine {
+  position: absolute;
+  left: 0; top: 18px; bottom: 18px;
+  width: 3px;
+  border-radius: 2px;
+  background: var(--accent);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  font: 400 11.5px/1 var(--mono);
+  color: var(--faint);
+}
+
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 16px; }
+.chip {
+  font: 400 10.5px/1 var(--mono);
+  color: var(--dim);
+  background: var(--panel-2);
+  border: 1px solid var(--line-soft);
+  padding: 5px 9px;
+  border-radius: 20px;
+}
+.chip.priv { color: var(--faint); }
+.chip.pub { color: var(--good); border-color: rgba(56, 217, 169, 0.3); }
+
+.metric {
+  font: 500 clamp(22px, 3vw, 30px)/1 var(--mono);
+  letter-spacing: -0.035em;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+.metric small {
+  display: block;
+  font-size: 10.5px;
+  letter-spacing: 0;
+  color: var(--faint);
+  margin-top: 7px;
+  font-weight: 400;
+}
+
+/* ==========================================================================
+   Data table
+   ========================================================================== */
+.table-scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--r); }
+table.data {
+  width: 100%;
+  border-collapse: collapse;
+  font: 400 13px/1.5 var(--mono);
+  min-width: 620px;
+}
+table.data th {
+  text-align: left;
+  font-weight: 500;
+  font-size: 10.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--faint);
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--line);
+  background: var(--panel);
+  white-space: nowrap;
+}
+table.data td {
+  padding: 13px 16px;
+  border-bottom: 1px solid var(--line-soft);
+  color: var(--dim);
+  white-space: nowrap;
+}
+table.data tr:last-child td { border-bottom: 0; }
+table.data td.num { font-variant-numeric: tabular-nums; color: var(--text); }
+table.data td.hi { color: var(--accent); font-weight: 500; }
+table.data tr:hover td { background: rgba(255, 255, 255, 0.017); }
+
+/* Bar embedded behind a table cell, sized by --v (0..1) */
+.bar {
+  position: relative;
+  display: block;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--line);
+  margin-top: 6px;
+  overflow: hidden;
+}
+.bar::after {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: calc(var(--v, 0) * 100%);
+  background: var(--accent);
+  border-radius: 2px;
+  transform-origin: left;
+  animation: grow var(--dur-3) var(--ease-out) backwards;
+}
+@keyframes grow { from { transform: scaleX(0); } }
+
+/* ==========================================================================
+   Rhythm heatmap, rendered live from stats.json
+   ========================================================================== */
+.heat {
+  display: grid;
+  grid-template-columns: 34px repeat(24, 1fr);
+  gap: 3px;
+  align-items: center;
+}
+.heat .lbl { font: 400 10px var(--mono); color: var(--faint); }
+.heat i {
+  display: block;
+  aspect-ratio: 1.1;
+  border-radius: 3px;
+  background: var(--panel-2);
+  transition: transform var(--dur-1) var(--ease);
+}
+.heat i:hover { transform: scale(1.35); z-index: 1; position: relative; }
+.heat .hr { font: 400 9px var(--mono); color: var(--faint); text-align: center; }
+
+/* ==========================================================================
+   Chrome: nav, motion control, sound, HUD
+   ========================================================================== */
+.hud-bar {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 120;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.btn {
+  font: 500 10.5px/1 var(--mono);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--dim);
+  background: rgba(11, 13, 19, 0.86);
+  backdrop-filter: blur(9px);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  padding: 9px 13px;
+  cursor: pointer;
+  transition: color var(--dur-1) var(--ease), border-color var(--dur-1) var(--ease);
+}
+.btn:hover { color: var(--text); border-color: #2a3346; }
+.btn[aria-pressed="true"] { color: var(--accent); border-color: rgba(255, 122, 24, 0.4); }
+
+@media (prefers-reduced-transparency: reduce) {
+  .btn { backdrop-filter: none; background: var(--panel); }
+}
+
+.dots {
+  position: fixed;
+  right: 20px;
+  top: 50%;
+  translate: 0 -50%;
+  z-index: 110;
+  display: grid;
+  gap: 13px;
+}
+.dots a {
+  display: block;
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--faint);
+  transition: background var(--dur-1) var(--ease), scale var(--dur-1) var(--ease);
+}
+.dots a[aria-current="true"] { background: var(--accent); scale: 1.5; }
+@media (max-width: 900px) { .dots { display: none; } }
+
+#hud {
+  position: fixed;
+  left: 16px; bottom: 16px;
+  z-index: 120;
+  font: 400 11px/1.55 var(--mono);
+  color: var(--dim);
+  background: rgba(11, 13, 19, 0.9);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 12px 14px;
+  min-width: 190px;
+  white-space: pre;
+}
+#hud b { color: var(--accent); font-weight: 500; }
+
+/* ==========================================================================
+   Terminal overlay
+   ========================================================================== */
+#term {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: rgba(3, 4, 7, 0.93);
+  backdrop-filter: blur(6px);
+  display: grid;
+  place-items: center;
+  padding: var(--gutter);
+}
+#term[hidden] { display: none; }
+.term-win {
+  width: min(880px, 100%);
+  height: min(560px, 78vh);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  display: grid;
+  grid-template-rows: auto 1fr;
+  overflow: hidden;
+  box-shadow: 0 40px 90px rgba(0, 0, 0, 0.6);
+}
+.term-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 14px;
+  border-bottom: 1px solid var(--line);
+  font: 400 11.5px var(--mono);
+  color: var(--dim);
+}
+.term-bar i { width: 10px; height: 10px; border-radius: 50%; background: var(--faint); }
+.term-bar i:last-of-type { background: var(--accent); }
+.term-body {
+  overflow-y: auto;
+  padding: 16px 18px 22px;
+  font: 400 13px/1.65 var(--mono);
+  color: var(--dim);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.term-body .u { color: var(--text); }
+.term-body .a { color: var(--accent); }
+.term-body .g { color: var(--good); }
+.term-line { display: flex; gap: 8px; align-items: baseline; }
+.term-line input {
+  flex: 1;
+  background: none;
+  border: 0;
+  color: var(--text);
+  font: inherit;
+  outline: none;
+  padding: 0;
+  caret-color: var(--accent);
+}
+
+/* ==========================================================================
+   Konami. The whole palette flips, and it is genuinely loud. Nothing about
+   the layout moves, so it cannot break the page: it is a token swap plus glow.
+   ========================================================================== */
+.neon {
+  --ink: #05010e;
+  --panel: #0d0320;
+  --panel-2: #150634;
+  --line: #35107a;
+  --line-soft: #230a52;
+  --text: #f5e9ff;
+  --dim: #b98cff;
+  --faint: #6b3fd0;
+  --accent: #ff2bd6;
+  --accent-2: #00e5ff;
+  --good: #7cff4d;
+}
+.neon body {
+  background:
+    radial-gradient(120% 70% at 50% 0%, rgba(255, 43, 214, 0.14), transparent 60%),
+    var(--ink);
+}
+.neon h2, .neon .metric, .neon .mark path {
+  text-shadow: 0 0 22px currentColor;
+  filter: drop-shadow(0 0 12px var(--accent));
+}
+.neon .card { box-shadow: 0 0 0 1px rgba(255, 43, 214, 0.16), 0 12px 44px rgba(255, 43, 214, 0.09); }
+.neon .btn { box-shadow: 0 0 18px rgba(255, 43, 214, 0.24); }
+.neon #gl { opacity: 0.72; }
+/* Scanlines, the one thing that has to actually move. */
+.neon body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 999;
+  pointer-events: none;
+  background: repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.22) 0 1px, transparent 1px 3px);
+  animation: roll calc(9s / var(--mo)) linear infinite;
+}
+@keyframes roll { to { background-position: 0 3px; } }
+
+/* ==========================================================================
+   Print: a real one-page CV. Ctrl+P is a common recruiter action and almost
+   nobody handles it.
+   ========================================================================== */
+@media print {
+  :root { --mo: 0.001; }
+  html, body { background: #fff; color: #000; font-size: 10.5pt; }
+  #gl, .dots, .hud-bar, #hud, #term, .cue, #arcade, .no-print { display: none !important; }
+  section { padding-block: 12pt; break-inside: avoid; }
+  .card { border: 1px solid #ccc; background: none; break-inside: avoid; padding: 10pt; }
+  h2 { font-size: 15pt; color: #000; }
+  .lede, .card p, table.data td { color: #333; }
+  .mark path { stroke: #000; animation: none; }
+  .rise { opacity: 1 !important; transform: none !important; }
+  a[href^="http"]::after { content: " (" attr(href) ")"; font-size: 8pt; color: #555; }
+  .table-scroll { overflow: visible; }
+}

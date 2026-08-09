@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Ubhay - builds local-first systems on one 8 GB card</title>
+<meta name="description" content="Systems engineer. llama.cpp internals, Supabase products, Electron tools, ad automation. Every number on this page is measured, and there is an arcade.">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#06070b">
+<link rel="canonical" href="https://ubhayaab.github.io/">
+<meta property="og:title" content="Ubhay">
+<meta property="og:description" content="Builds local-first systems on one 8 GB card. Measured numbers, and an arcade built out of them.">
+<meta property="og:url" content="https://ubhayaab.github.io/">
+<meta property="og:type" content="website">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%2306070b'/><path d='M28 28v26c0 10 7 17 16 17h1c9 0 16-7 16-17V28' fill='none' stroke='%23ff7a18' stroke-width='9' stroke-linecap='round'/></svg>">
+<link rel="stylesheet" href="./css/core.css">
+<!-- Marks that scripting is live. Only then does CSS hide anything for the
+     scroll reveal, so a JS failure degrades to a readable document. -->
+<script>document.documentElement.className = "js";</script>
+</head>
+<body>
+
+<a class="skip" href="#work">Skip to content</a>
+
+<!-- ====================================================================== -->
+<section id="hero">
+  <canvas id="gl" aria-hidden="true"></canvas>
+  <div class="wrap">
+    <!-- pathLength="100" on every stroke is load-bearing: it normalises each
+         glyph so one stroke-dasharray value drives the draw-on for all of
+         them. Without it the dash pattern is in user units and the letters
+         render as fragments. -->
+    <svg class="mark" viewBox="-6 -6 394 96" role="img" aria-label="Ubhay">
+      <g transform="translate(0,0)"><path pathLength="100" d="M0,0 V50 C0,70 14,84 31,84 C48,84 62,70 62,50 V0" style="animation-delay:0ms,1035ms"/></g>
+      <g transform="translate(80,0)">
+        <path pathLength="100" d="M0,0 V84" style="animation-delay:80ms,1115ms"/>
+        <path pathLength="100" d="M0,0 H36 C50,0 57,8 57,20 C57,32 50,40 36,40 H0" style="animation-delay:120ms,1155ms"/>
+        <path pathLength="100" d="M0,40 H38 C53,40 62,49 62,62 C62,75 53,84 38,84 H0" style="animation-delay:160ms,1195ms"/>
+      </g>
+      <g transform="translate(160,0)">
+        <path pathLength="100" d="M0,0 V84" style="animation-delay:240ms,1275ms"/>
+        <path pathLength="100" d="M62,0 V84" style="animation-delay:280ms,1315ms"/>
+        <path pathLength="100" d="M0,44 H62" style="animation-delay:320ms,1355ms"/>
+      </g>
+      <g transform="translate(240,0)">
+        <path pathLength="100" d="M0,84 L31,0 L62,84" style="animation-delay:400ms,1435ms"/>
+        <path pathLength="100" d="M12,56 H50" style="animation-delay:440ms,1475ms"/>
+      </g>
+      <g transform="translate(320,0)">
+        <path pathLength="100" d="M0,0 L31,44 L62,0" style="animation-delay:520ms,1555ms"/>
+        <path pathLength="100" d="M31,44 V84" style="animation-delay:560ms,1595ms"/>
+      </g>
+    </svg>
+
+    <p class="tagline">Builds local-first systems on <b>one 8 GB card</b>.</p>
+    <p class="sub">llama.cpp internals, Supabase products, Electron tools, ad automation.
+      Everything below is measured on the machine it claims to run on.</p>
+
+    <dl class="ticker" id="ticker">
+      <div><dt>Repositories</dt><dd data-k="repos">-</dd></div>
+      <div><dt>Commits</dt><dd data-k="commits">-</dd></div>
+      <div><dt>Languages</dt><dd data-k="langs">-</dd></div>
+      <div><dt>Peak tok/s</dt><dd data-k="tps">-</dd></div>
+      <div><dt>Last push</dt><dd data-k="push">-</dd></div>
+    </dl>
+  </div>
+  <span class="cue">scroll</span>
+</section>
+
+<!-- ====================================================================== -->
+<section id="signal">
+  <div class="wrap">
+    <p class="eyebrow rise">01 / the machine</p>
+    <h2 class="rise" style="--d:60ms">File size does not<br>predict throughput.</h2>
+    <p class="lede rise" style="--d:120ms">
+      Every model installed on this laptop, benchmarked the same way, on the same prompt,
+      at temperature zero. VRAM residency is read back from the runtime after load rather
+      than guessed from the file size. The interesting result is the inversion.
+    </p>
+
+    <div class="table-scroll rise" style="--d:180ms">
+      <table class="data">
+        <thead>
+          <tr>
+            <th>Model</th><th>Params</th><th>Quant</th><th>On disk</th>
+            <th>In VRAM</th><th>Generation tok/s</th><th>Prompt tok/s</th>
+          </tr>
+        </thead>
+        <tbody id="bench-rows"></tbody>
+      </table>
+    </div>
+    <p class="lede rise" id="bench-note" style="--d:240ms;margin-top:28px"></p>
+  </div>
+</section>
+
+<!-- ====================================================================== -->
+<section id="work">
+  <div class="wrap">
+    <p class="eyebrow rise">02 / work</p>
+    <h2 class="rise" style="--d:60ms">Four things worth<br>opening.</h2>
+    <p class="lede rise" style="--d:120ms">
+      Prose is written by hand. Every number is read live from the GitHub API at build time,
+      so a card can go stale in its description but never in its facts.
+    </p>
+    <div class="grid" id="work-grid"></div>
+    <p class="lede rise" style="margin-top:34px">
+      <a href="https://github.com/UbhayAab?tab=repositories" class="mono accent">all <span data-k="repos">37</span> repositories on GitHub</a>
+    </p>
+  </div>
+</section>
+
+<!-- ====================================================================== -->
+<section id="rhythm">
+  <div class="wrap">
+    <p class="eyebrow rise">03 / rhythm</p>
+    <h2 class="rise" style="--d:60ms">When the commits land.</h2>
+    <p class="lede rise" style="--d:120ms" id="rhythm-note"></p>
+    <div class="card rise" style="--d:180ms;padding:30px 26px">
+      <div class="heat" id="heat" role="img" aria-label="Heatmap of commits by weekday and hour"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ====================================================================== -->
+<section id="arcade">
+  <div class="wrap">
+    <p class="eyebrow rise">04 / arcade</p>
+    <h2 class="rise" style="--d:60ms">Five games built out<br>of the same numbers.</h2>
+    <p class="lede rise" style="--d:120ms">
+      Not decoration. Each one is a real problem from the work above, shrunk to
+      something you can lose at in ninety seconds. Keyboard playable, scores kept locally,
+      and the par score on the first one is the recipe actually shipped.
+    </p>
+    <div class="grid" id="arcade-grid"></div>
+    <div id="stage" hidden></div>
+  </div>
+</section>
+
+<!-- ====================================================================== -->
+<section id="receipts">
+  <div class="wrap">
+    <p class="eyebrow rise">05 / receipts</p>
+    <h2 class="rise" style="--d:60ms">Every claim, and how<br>it was measured.</h2>
+    <p class="lede rise" style="--d:120ms">
+      Including the ones that did not go well. A page that only reports its wins is
+      a brochure.
+    </p>
+    <div class="grid" id="receipts-grid"></div>
+  </div>
+</section>
+
+<!-- ====================================================================== -->
+<section id="contact">
+  <div class="wrap">
+    <p class="eyebrow rise">06 / end</p>
+    <h2 class="rise" style="--d:60ms">Say something.</h2>
+    <p class="lede rise" style="--d:120ms">
+      Press <kbd class="mono">`</kbd> anywhere on this page for a terminal that knows
+      the repositories. <kbd class="mono">Ctrl</kbd>+<kbd class="mono">P</kbd> prints a
+      one-page CV. There is also a Konami code.
+    </p>
+    <p class="lede rise mono" style="--d:180ms">
+      <a href="https://github.com/UbhayAab" class="accent">github.com/UbhayAab</a><br>
+      <a href="mailto:ubhayvatsaanand@gmail.com" class="accent">ubhayvatsaanand@gmail.com</a>
+    </p>
+    <p class="row rise" style="--d:240ms;margin-top:60px;border-top:1px solid var(--line);padding-top:22px">
+      <span id="stamp">built from measured data</span>
+      <span><a href="https://github.com/UbhayAab/UbhayAab.github.io">source</a></span>
+    </p>
+  </div>
+</section>
+
+<nav class="dots no-print" aria-label="Section navigation">
+  <a href="#hero" aria-label="Top"></a>
+  <a href="#signal" aria-label="The machine"></a>
+  <a href="#work" aria-label="Work"></a>
+  <a href="#rhythm" aria-label="Rhythm"></a>
+  <a href="#arcade" aria-label="Arcade"></a>
+  <a href="#receipts" aria-label="Receipts"></a>
+  <a href="#contact" aria-label="Contact"></a>
+</nav>
+
+<div class="hud-bar no-print">
+  <button class="btn" id="motion" aria-pressed="false" title="Cycle motion: full, reduced, off">motion: full</button>
+  <button class="btn" id="sound" aria-pressed="false" title="Procedural audio, off by default">sound: off</button>
+</div>
+
+<div id="term" hidden role="dialog" aria-modal="true" aria-label="Terminal">
+  <div class="term-win">
+    <div class="term-bar"><i></i><i></i><i></i>&nbsp;ubhay@github &mdash; press Esc to close</div>
+    <div class="term-body" id="term-body" tabindex="-1"></div>
+  </div>
+</div>
+
+<noscript>
+  <div class="wrap" style="padding-block:60px">
+    <div class="card">
+      <h3>JavaScript is off, and this page still works.</h3>
+      <p>The shader background, the arcade and the terminal need it. Everything that
+      matters is text and it is all above. The profile README carries the same numbers
+      as static images.</p>
+      <p class="mono"><a href="https://github.com/UbhayAab" class="accent">github.com/UbhayAab</a></p>
+    </div>
+  </div>
+</noscript>
+
+<script src="./data/site-data.js"></script>
+<script type="module" src="./js/boot.js"></script>
+</body>
+</html>
