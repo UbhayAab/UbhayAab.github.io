@@ -40,6 +40,7 @@ uniform float u_diskInner;
 uniform float u_diskOuter;
 uniform float u_intensity;    // 0..1 fade in as the hole is approached
 uniform float u_diskTilt;
+uniform float u_flare;        // warp-exit bloom, 0..1
 
 out vec4 outColor;
 
@@ -228,6 +229,22 @@ void main() {
   colour *= u_intensity;
   colour = colour / (1.0 + colour * 0.72);
   colour = pow(max(colour, 0.0), vec3(0.4545));
+
+  // Warp exit. The streaks blueshift into a bloom and the hole resolves out of
+  // it, so the two phases are one continuous event rather than a cut. Radial
+  // streaking keeps the sense of speed right up to the moment it stops.
+  if (u_flare > 0.001) {
+    float r = length(uv);
+    vec2 rad = uv / max(r, 1e-4);
+    float streak = 0.0;
+    for (int s = 1; s <= 5; s++) {
+      vec2 sp = uv - rad * float(s) * 0.055;
+      streak += exp(-length(sp) * 1.6) / float(s);
+    }
+    vec3 hot = mix(vec3(0.45, 0.72, 1.0), vec3(1.0, 0.94, 0.86), u_flare);
+    colour += hot * u_flare * (0.30 + streak * 0.34);
+    colour += vec3(0.60, 0.78, 1.0) * u_flare * u_flare * 0.55;
+  }
 
   // Faint grain to break up banding in the large dark areas. Applied after
   // gamma, so it stays subtle instead of being lifted with everything else.

@@ -4,14 +4,14 @@
 //
 //   node tools/validate-physics.mjs
 
-import { integrateAscent, runValidation, orbitalVelocity, hohmann, F9, ASCENT } from '../js/flight/physics.js';
+import { integrateAscent, runValidation, orbitalVelocity, hohmann, SS, ASCENT } from '../js/flight/physics.js';
 
 // --sweep searches the pitch kick angle against the real MECO state instead of
 // letting somebody pick a number that looks about right. maxQ is constrained
 // too, because a trajectory can hit the right MECO altitude by flying a
 // profile that would tear a real vehicle apart.
 if (process.argv.includes('--sweep')) {
-  console.log('  angle    MECO alt    MECO vel     maxQ     apogee    error');
+  console.log('  angle   stage alt   stage vel     maxQ     apogee    error');
   let best = null;
   for (let a = 0.10; a <= 0.36; a += 0.01) {
     ASCENT.pitchKickAngle = a;
@@ -20,7 +20,7 @@ if (process.argv.includes('--sweep')) {
     if (!e) continue;
     const altKm = e.h / 1000;
     const q = t.events.maxQ.q / 1000;
-    const err = Math.abs(altKm - 67) / 67 + Math.abs(e.v - 2300) / 2300;
+    const err = Math.abs(altKm - 68) / 68 + Math.abs(e.v - 1550) / 1550;
     const sane = q > 20 && q < 45;
     console.log(
       `  ${a.toFixed(2)}  ${altKm.toFixed(1).padStart(8)} km ${e.v.toFixed(0).padStart(8)} m/s`
@@ -68,8 +68,8 @@ for (const t of [0, 20, 40, 60, 90, 120, 152, 180, 240, 300, 400, 500]) {
 }
 
 console.log('\n--- derived ---');
-console.log(`  liftoff mass      ${(F9.liftoffMass / 1000).toFixed(1)} t`);
-console.log(`  liftoff TWR       ${(F9.stage1.thrustSL / (F9.liftoffMass * 9.80665)).toFixed(2)}`);
+console.log(`  liftoff mass      ${(SS.liftoffMass / 1000).toFixed(1)} t`);
+console.log(`  liftoff TWR       ${(SS.stage1.thrustSL / (SS.liftoffMass * 9.80665)).toFixed(2)}`);
 console.log(`  apogee            ${(traj.apogee / 1000).toFixed(1)} km`);
 console.log(`  final velocity    ${traj.finalVelocity.toFixed(0)} m/s`);
 console.log(`  orbital v @200km  ${orbitalVelocity(200e3).toFixed(0)} m/s`);
@@ -78,3 +78,4 @@ console.log(`  LEO to GEO        ${h.total.toFixed(0)} m/s over ${(h.time / 3600
 
 console.log(`\n${checks.length - fails}/${checks.length} checks passed`);
 process.exit(fails ? 1 : 0);
+

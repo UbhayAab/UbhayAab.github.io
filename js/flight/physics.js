@@ -1,15 +1,16 @@
 // Real ascent physics. Nothing on this page is animated by hand-tuned easing
 // curves pretending to be a rocket: the altitude, velocity, mass and pitch all
-// come out of integrating the equations of motion for an actual Falcon 9
-// Block 5 flight profile.
+// come out of integrating the equations of motion for a Super Heavy plus
+// Starship flight profile.
 //
 // The trajectory is computed once at load (a few milliseconds) and then
 // sampled by scroll position, so the scroll bar is genuinely scrubbing a
 // simulation rather than a keyframe track.
 //
-// Validation targets, from published Falcon 9 flight profiles:
-//   MECO   T+ ~152 s, ~67 km altitude, ~2300 m/s
-//   SECO-1 T+ ~525 s, ~200 km, ~7700 m/s
+// Validation targets come from the public flight-test telemetry rather than a
+// spec sheet, since SpaceX does not publish Starship dry masses:
+//   hot-stage / MECO   T+ ~2:40, ~68 km, ~1550 m/s
+//   SECO               T+ ~8:35, ~150-190 km, ~7200 m/s
 // runValidation() checks against these and is called by the test harness.
 
 export const EARTH = {
@@ -20,35 +21,60 @@ export const EARTH = {
   omega: 7.2921159e-5,  // rotation rate, rad/s
 };
 
-// Falcon 9 Block 5. Public figures.
-export const F9 = {
-  stage1: {
-    engines: 9,
-    thrustSL: 7607e3,   // N, total at sea level
-    thrustVac: 8227e3,  // N, total in vacuum
-    ispSL: 282,         // s
-    ispVac: 311,        // s
-    propellant: 411000, // kg
-    dry: 22200,         // kg
-    burnTime: 162,      // s to depletion; MECO is commanded earlier
+// Super Heavy + Starship. Published figures, which are less settled than
+// Falcon 9's: SpaceX has changed masses between blocks and does not publish
+// dry mass. These are the commonly cited values and the validation below is
+// against real flight-test telemetry rather than against a spec sheet.
+//
+// Chosen over Falcon 9 because Starship has no fairing. On a Falcon the
+// fairing jettisons and the second stage carries a payload you never see,
+// which reads as incoherent: a cargo bay opens and nothing comes out. The
+// ship IS the payload, so the vehicle that reaches orbit is a whole object.
+export const SS = {
+  name: 'Starship',
+  stage1: {                // Super Heavy
+    label: 'SUPER HEAVY',
+    engines: 33,           // Raptor 2
+    thrustSL: 74400e3,     // N, total at sea level
+    thrustVac: 79000e3,    // N
+    ispSL: 327,            // s
+    ispVac: 350,           // s
+    propellant: 3400000,   // kg
+    dry: 200000,           // kg
+    // Super Heavy does not burn to depletion. It stages with propellant held
+    // back for the boostback and landing burns, which is exactly why it hot
+    // stages at only ~1550 m/s where a Falcon 9 is doing 2300. Without this
+    // reserve the simulated booster overperforms by nearly a kilometre a
+    // second and arrives at staging almost twice as high as the real one.
+    reserve: 620000,       // kg
   },
-  stage2: {
-    engines: 1,
-    thrustVac: 981e3,   // N
-    ispVac: 348,        // s
-    propellant: 107500, // kg
-    dry: 4000,          // kg
+  stage2: {                // Ship
+    label: 'SHIP',
+    engines: 6,            // 3 Raptor sea level + 3 Raptor Vacuum
+    thrustVac: 14265e3,    // N
+    ispVac: 372,           // s, blended across the two engine types
+    propellant: 1200000,   // kg
+    dry: 120000,           // kg
   },
-  payload: 15600,       // kg, reusable-profile LEO payload
-  diameter: 3.7,        // m
-  height: 70,           // m
-  Cd: 0.30,             // drag coefficient, blunt-ish body
+  // A nominal operational LEO load. With zero payload the ship's mass ratio
+  // gives it nearly 8.8 km/s of delta-v on its own, which is real but not a
+  // flight anybody actually flies.
+  payload: 100000,         // kg
+  diameter: 9,             // m
+  height: 121,             // m
+  Cd: 0.32,
+  // Hot staging: the ship lights its engines while still attached and pushes
+  // off the booster, so there is no coast between cutoff and separation.
+  hotStaging: true,
   get area() { return Math.PI * (this.diameter / 2) ** 2; },
   get liftoffMass() {
     return this.stage1.propellant + this.stage1.dry
       + this.stage2.propellant + this.stage2.dry + this.payload;
   },
 };
+
+// Kept so anything importing the old name still resolves.
+export const F9 = SS;
 
 const G0 = 9.80665;
 
@@ -94,15 +120,16 @@ export function hohmann(h1, h2) {
 // The value here was found by sweeping against the real MECO altitude rather
 // than picked by eye. See tools/validate-physics.mjs --sweep.
 export const ASCENT = {
-  pitchKickStart: 12,   // s
-  pitchKickEnd: 32,     // s
-  pitchKickAngle: 0.15, // rad off vertical, found by sweep against real MECO
-  mecoTime: 152,        // s, commanded
-  targetAltitude: 200e3, // m, second stage aims here
+  pitchKickStart: 14,   // s
+  pitchKickEnd: 38,     // s
+  pitchKickAngle: 0.34, // rad off vertical, found by sweep against real hot-stage state
+  mecoTime: 160,        // s, hot-stage command on the flights flown so far
+  stagingCoast: 0,      // s; hot staging means no coast before separation
+  targetAltitude: 190e3, // m, the ship aims here
   qLimit: 34e3,         // Pa, guidance will loft rather than exceed this
-  throttleStart: 44,    // s, begin the max-Q throttle down
-  throttleEnd: 82,      // s
-  throttleMin: 0.75,    // fraction of full thrust through max Q
+  throttleStart: 46,    // s, begin the max-Q throttle down
+  throttleEnd: 88,      // s
+  throttleMin: 0.72,    // fraction of full thrust through max Q
 };
 
 /**
@@ -187,22 +214,23 @@ function derivatives(s, t) {
   const speed = Math.hypot(s.vx, s.vy);
 
   const stage1 = t < ASCENT.mecoTime;
-  const st = stage1 ? F9.stage1 : F9.stage2;
+  const st = stage1 ? SS.stage1 : SS.stage2;
 
   // Sea level to vacuum interpolation on thrust and Isp, by ambient pressure.
   const pressureRatio = stage1 ? Math.exp(-h / EARTH.H) : 0;
   const thrust = stage1
-    ? F9.stage1.thrustVac + (F9.stage1.thrustSL - F9.stage1.thrustVac) * pressureRatio
-    : F9.stage2.thrustVac;
+    ? SS.stage1.thrustVac + (SS.stage1.thrustSL - SS.stage1.thrustVac) * pressureRatio
+    : SS.stage2.thrustVac;
   const isp = stage1
-    ? F9.stage1.ispVac + (F9.stage1.ispSL - F9.stage1.ispVac) * pressureRatio
-    : F9.stage2.ispVac;
+    ? SS.stage1.ispVac + (SS.stage1.ispSL - SS.stage1.ispVac) * pressureRatio
+    : SS.stage2.ispVac;
 
   // Dynamic pressure has to be known before guidance runs, because guidance
   // uses it to decide whether to keep turning or climb out.
   const q = 0.5 * rho * speed * speed;
 
-  const burning = s.prop > 0;
+  const floor = stage1 ? (SS.stage1.reserve || 0) : 0;
+  const burning = s.prop > floor;
   const thr = stage1 ? throttle(t) : 1;
   const T = burning ? thrust * thr : 0;
   const mdot = burning ? T / (isp * G0) : 0;
@@ -211,7 +239,7 @@ function derivatives(s, t) {
   const dir = pitchAngle(t, s.vx, s.vy, q, h, T / m, stage1);
 
   // Drag opposes velocity.
-  const drag = q * F9.Cd * F9.area;
+  const drag = q * SS.Cd * SS.area;
   const dragX = speed > 0 ? -drag * (s.vx / speed) : 0;
   const dragY = speed > 0 ? -drag * (s.vy / speed) : 0;
 
@@ -237,8 +265,8 @@ function derivatives(s, t) {
 export function integrateAscent(dt = 0.05, tEnd = 540) {
   let s = {
     x: 0, y: 0, vx: 0, vy: 0,
-    m: F9.liftoffMass,
-    prop: F9.stage1.propellant,
+    m: SS.liftoffMass,
+    prop: SS.stage1.propellant,
   };
 
   const samples = [];
@@ -266,9 +294,9 @@ export function integrateAscent(dt = 0.05, tEnd = 540) {
     if (!staged && t >= ASCENT.mecoTime) {
       events.meco = { t, h: s.y, v: Math.hypot(s.vx, s.vy), vx: s.vx, vy: s.vy, m: s.m };
       // 4 seconds of coast between MECO and separation, as flown.
-      if (t >= ASCENT.mecoTime + 4) {
-        s.m -= F9.stage1.dry + Math.max(0, s.prop);
-        s.prop = F9.stage2.propellant;
+      if (t >= ASCENT.mecoTime + ASCENT.stagingCoast) {
+        s.m -= SS.stage1.dry + Math.max(0, s.prop);
+        s.prop = SS.stage2.propellant;
         staged = true;
         events.sep = { t, h: s.y, v: Math.hypot(s.vx, s.vy) };
       }
@@ -313,10 +341,14 @@ export function integrateAscent(dt = 0.05, tEnd = 540) {
     }
 
     // Orbital insertion: stop when circular orbit velocity is reached.
-    // Insertion. The 0.5% tolerance matters: with a real payload the stage
-    // burns to depletion within a few m/s of circular velocity, so an exact
-    // comparison misses the event by a rounding error.
-    if (staged && !events.seco && Math.hypot(s.vx, s.vy) >= orbitalVelocity(s.y) * 0.995) {
+    // SECO is engine cutoff, which happens when the propellant is gone or
+    // when the target velocity is reached, whichever comes first. Testing
+    // only for orbital velocity meant a ship that fell 40 m/s short never
+    // registered the event at all, ran on for another five minutes of
+    // simulated time, and re-entered, so the telemetry at the end of the page
+    // was reporting a vehicle at 56 km with 47 kPa on it.
+    const reachedOrbit = Math.hypot(s.vx, s.vy) >= orbitalVelocity(s.y) * 0.995;
+    if (staged && !events.seco && (reachedOrbit || s.prop <= 0)) {
       events.seco = { t, h: s.y, v: Math.hypot(s.vx, s.vy) };
       break;
     }
@@ -333,11 +365,11 @@ export function integrateAscent(dt = 0.05, tEnd = 540) {
     finalVelocity: last.v,
     dt,
     budget: {
-      stage1: deltaV(F9.stage1.ispVac, F9.liftoffMass, F9.liftoffMass - F9.stage1.propellant),
+      stage1: deltaV(SS.stage1.ispVac, SS.liftoffMass, SS.liftoffMass - SS.stage1.propellant),
       stage2: deltaV(
-        F9.stage2.ispVac,
-        F9.stage2.propellant + F9.stage2.dry + F9.payload,
-        F9.stage2.dry + F9.payload
+        SS.stage2.ispVac,
+        SS.stage2.propellant + SS.stage2.dry + SS.payload,
+        SS.stage2.dry + SS.payload
       ),
     },
   };
@@ -375,39 +407,40 @@ export function runValidation(traj) {
   const { events } = traj;
   const checks = [
     {
-      name: 'MECO time',
-      got: events.meco?.t, want: 152, tol: 6, unit: 's',
+      name: 'hot-stage time',
+      got: events.meco?.t, want: 160, tol: 14, unit: 's',
     },
     {
-      name: 'MECO altitude',
-      got: events.meco ? events.meco.h / 1000 : null, want: 67, tol: 22, unit: 'km',
+      name: 'hot-stage altitude',
+      got: events.meco ? events.meco.h / 1000 : null, want: 68, tol: 24, unit: 'km',
     },
     {
-      name: 'MECO velocity',
-      got: events.meco?.v, want: 2300, tol: 700, unit: 'm/s',
+      name: 'hot-stage velocity',
+      got: events.meco?.v, want: 1600, tol: 750, unit: 'm/s',
     },
     {
       name: 'max Q altitude',
-      got: events.maxQ ? events.maxQ.h / 1000 : null, want: 13, tol: 7, unit: 'km',
+      got: events.maxQ ? events.maxQ.h / 1000 : null, want: 12, tol: 8, unit: 'km',
     },
     {
       name: 'max Q value',
-      got: events.maxQ ? events.maxQ.q / 1000 : null, want: 33, tol: 18, unit: 'kPa',
+      got: events.maxQ ? events.maxQ.q / 1000 : null, want: 32, tol: 18, unit: 'kPa',
     },
     {
       name: 'liftoff TWR',
-      got: F9.stage1.thrustSL / (F9.liftoffMass * 9.80665), want: 1.24, tol: 0.15, unit: '',
+      got: SS.stage1.thrustSL / (SS.liftoffMass * 9.80665), want: 1.50, tol: 0.18, unit: '',
     },
     {
-      // Falcon 9 stage 1 really is about 4 km/s. The ~9.4 km/s figure quoted
-      // for "getting to orbit" is the whole mission including stage 2 and
-      // gravity and drag losses, not this stage.
-      name: 'stage 1 delta-v',
-      got: traj.budget.stage1, want: 4000, tol: 600, unit: 'm/s',
+      name: 'booster delta-v',
+      got: traj.budget.stage1, want: 3600, tol: 900, unit: 'm/s',
     },
     {
-      name: 'stage 2 delta-v',
-      got: traj.budget.stage2, want: 6000, tol: 1200, unit: 'm/s',
+      name: 'ship delta-v',
+      got: traj.budget.stage2, want: 6700, tol: 1500, unit: 'm/s',
+    },
+    {
+      name: 'SECO velocity',
+      got: events.seco?.v ?? traj.finalVelocity, want: 7250, tol: 750, unit: 'm/s',
     },
     {
       name: 'orbital velocity at 200 km',

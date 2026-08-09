@@ -7,38 +7,48 @@ runtime. Everything it displays is measured rather than asserted.
 
 ## The flight
 
-Scrolling the page flies a Falcon 9 from the pad to orbit and then on to a
-black hole. It is not a keyframe track. The altitude, velocity, mass and
+Scrolling the page flies a Super Heavy and Starship from the pad to orbit and
+on to a black hole. It is not a keyframe track. The altitude, velocity, mass and
 dynamic pressure in the telemetry readout come out of integrating the
 equations of motion, and the scroll bar is scrubbing that simulation.
 
 | Phase | Section | What happens |
 |---|---|---|
-| PAD | hero | Booster standing, upper stage and fairing mate onto it |
-| IGNITION | the machine | Nine Merlins light, plume builds |
+| PAD | hero | Booster standing, ship lowers onto it and mates |
+| IGNITION | the machine | 33 Raptors light, plume builds and lights the hull |
 | ASCENT | the machine | Gravity turn, max Q, atmosphere thins, stars sharpen |
 | MECO / SEP | work | Engines cut at T+156 s, booster separates and flips for boostback |
-| ORBIT | rhythm | Second stage burns to insertion, Earth curve below |
-| WARP | arcade | Star streaks |
-| GARGANTUA | receipts, contact | Orbit around a black hole |
+| ORBIT | rhythm | Ship burns to insertion pitched near horizontal, Earth curve below |
+| WARP | arcade | Star streaks winding up and blueshifting into a flare |
+| GARGANTUA | receipts, contact | The ship arrives, decelerates and settles into orbit around a black hole |
 
 **The ascent is simulated.** `js/flight/physics.js` integrates a 2D gravity
-turn with RK4 using real Block 5 numbers: 7,607 kN at sea level, 282 s Isp,
-411 t of propellant, an exponential atmosphere and drag. Guidance throttles
-through max Q and limits dynamic pressure, and the second stage flies a
-simplified linear-tangent law rather than a gravity turn, because following
-the velocity vector up there just throws the vehicle higher and it never
-reaches orbit.
+turn with RK4: 74.4 MN at sea level across 33 Raptors, 327 s Isp, 3,400 t of
+propellant, an exponential atmosphere and drag. Guidance throttles through
+max Q and limits dynamic pressure, and the ship flies a simplified
+linear-tangent law rather than a gravity turn, because following the velocity
+vector up there just throws the vehicle higher and it never reaches orbit.
+
+Starship rather than Falcon 9 for one specific reason: **no fairing**. On a
+Falcon the fairing jettisons and the second stage carries a payload you never
+see, so a cargo bay opens and nothing comes out. The ship is the payload, so
+the object that reaches orbit and flies on is a single coherent vehicle.
+
+The booster also does not burn to depletion. It stages holding 620 t back for
+boostback and landing, which is exactly why it hot stages at ~1,600 m/s where
+a Falcon 9 is doing 2,300. Without that reserve the simulated booster
+overperforms by nearly a kilometre a second and arrives at staging almost
+twice as high as the real one.
 
 `node tools/validate-physics.mjs` checks the result against published flight
-milestones and currently passes 9/9:
+milestones and currently passes 10/10:
 
-| | simulated | real Falcon 9 |
+| | simulated | real flight test |
 |---|---|---|
-| MECO | T+156 s, 67.3 km, 2,463 m/s | T+152 s, ~67 km, ~2,300 m/s |
-| max Q | T+56 s, 25.5 kPa | ~T+72 s, ~33 kPa |
-| SECO | T+530 s, 7,780 m/s | ~T+525 s, ~7,700 m/s |
-| stage 1 delta-v | 4,033 m/s | ~4,000 m/s |
+| hot stage | T+160 s, 66.1 km, 1,602 m/s | T+~2:40, ~68 km, ~1,550 m/s |
+| max Q | T+52 s, 32.6 kPa | ~T+55 s, ~32 kPa |
+| SECO | T+467 s, 7,681 m/s | ~T+8:35, ~7,200 m/s |
+| liftoff mass / TWR | 5,020 t, 1.51 | ~5,000 t, ~1.5 |
 
 `--sweep` searches the pitch kick angle against the real MECO state rather
 than letting anybody pick a number that looks about right.
@@ -59,7 +69,7 @@ light that grazed r = 1.5 looped and escaped. The disk carries a
 Keplerian orbit, and gravitational redshift, which is why one side is visibly
 brighter and bluer than the other.
 
-Integration steps per pixel are set by the quality tier: 90 / 170 / 280.
+Integration steps per pixel are set by the quality tier (56 / 110 / 190) and then converged against measured frame time, with a hard floor of 70: below about 60 steps the rays that should fall through the horizon escape instead, the shadow fills with stars, and it stops being a black hole. Resolution gives way before correctness does.
 
 ## What is in here
 
@@ -69,7 +79,7 @@ Integration steps per pixel are set by the quality tier: 90 / 170 / 280.
 | `js/flight/physics.js` | The ascent integrator and orbital mechanics. No rendering. |
 | `js/flight/blackhole.js` | The Schwarzschild geodesic raymarcher. |
 | `js/flight/gfx.js` | mat4/vec3, procedural mesh builders, GL helpers. About 9 KB, in place of three.js. |
-| `js/flight/rocket.js` | Falcon 9 geometry at real proportions, split into parts that separate. |
+| `js/flight/rocket.js` | Super Heavy and Starship at real proportions: 121 m, 9 m core, 33 Raptors, 4 flaps, ogive nose. |
 | `js/flight/scene.js` | The renderer: sky, warp, hole, earth, solids, plume. |
 | `js/flight/director.js` | Scroll to phase, camera, telemetry. |
 | `tools/flight-test.html` | Scrubbable harness for the whole flight. `?p=0.42` pins a phase. |

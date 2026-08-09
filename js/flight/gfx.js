@@ -234,14 +234,22 @@ export function plate(w, h, thickness = 0.02) {
   return { positions, normals, indices };
 }
 
-/** Concatenates meshes, offsetting indices. */
+/**
+ * Concatenates meshes, offsetting indices.
+ *
+ * Deliberately not `push(...arr)`. Spreading a vertex array passes every
+ * element as a separate argument, and a booster with 33 engine bells is well
+ * past the engine's argument limit: it throws "RangeError: Invalid array
+ * length" from inside a geometry builder, which is a long way from where it
+ * looks like the problem is.
+ */
 export function merge(...meshes) {
   const out = { positions: [], normals: [], indices: [] };
   for (const m of meshes) {
     const offset = out.positions.length / 3;
-    out.positions.push(...m.positions);
-    out.normals.push(...m.normals);
-    for (const i of m.indices) out.indices.push(i + offset);
+    for (let i = 0; i < m.positions.length; i += 1) out.positions.push(m.positions[i]);
+    for (let i = 0; i < m.normals.length; i += 1) out.normals.push(m.normals[i]);
+    for (let i = 0; i < m.indices.length; i += 1) out.indices.push(m.indices[i] + offset);
   }
   return out;
 }
