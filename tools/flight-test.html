@@ -1,0 +1,83 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>flight test</title>
+<style>
+  html,body{margin:0;height:100%;background:#000;overflow:hidden;
+    font:12px/1.5 ui-monospace,Consolas,monospace;color:#7c8699}
+  canvas{display:block;width:100vw;height:100vh;position:fixed;inset:0}
+  #hud{position:fixed;left:20px;top:20px;z-index:5;white-space:pre;
+    background:rgba(6,7,11,.72);border:1px solid #1b2130;border-radius:10px;padding:14px 16px}
+  #hud b{color:#ff7a18;font-weight:500}
+  #slider{position:fixed;left:20px;right:20px;bottom:20px;z-index:5;width:calc(100% - 40px)}
+  #err{position:fixed;inset:0;padding:24px;color:#ff6b6b;white-space:pre-wrap;overflow:auto;
+    background:#0a0a0f;display:none;z-index:9}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<pre id="hud"></pre>
+<input id="slider" type="range" min="0" max="1000" value="0">
+<pre id="err"></pre>
+<script type="module">
+// Scrubbable harness for the whole flight. ?p=0.42 pins a phase for a
+// screenshot; without it the slider drives.
+import { createScene } from '../js/flight/scene.js';
+import { createDirector, formatTelemetry } from '../js/flight/director.js';
+
+const errEl = document.getElementById('err');
+const fail = (e) => {
+  errEl.style.display = 'block';
+  errEl.textContent = String(e && e.stack || e);
+  console.error(e);
+};
+
+try {
+  const q = new URLSearchParams(location.search);
+  const canvas = document.getElementById('c');
+  const hud = document.getElementById('hud');
+  const slider = document.getElementById('slider');
+
+  const scene = createScene(canvas, { tier: q.get('tier') || 'high' });
+  if (!scene) throw new Error('scene failed to create (no webgl2 or shader error, see console)');
+  const director = createDirector();
+
+  const pinned = q.has('p') ? Number(q.get('p')) : null;
+  if (pinned != null) { slider.value = String(pinned * 1000); slider.style.display = 'none'; }
+
+  let last = performance.now();
+  let frames = 0;
+  let acc = 0;
+  let fps = 0;
+
+  function frame(now) {
+    const dt = Math.min(0.05, (now - last) / 1000);
+    last = now;
+    acc += dt; frames += 1;
+    if (acc > 0.5) { fps = frames / acc; acc = 0; frames = 0; }
+
+    const p = pinned != null ? pinned : Number(slider.value) / 1000;
+    const f = director.state(p);
+    scene.render(f, dt, now);
+
+    const T = formatTelemetry(f.telemetry, f.phase);
+    hud.innerHTML =
+      `<b>${T.phase.padEnd(12)}</b> p=${p.toFixed(3)}\n`
+      + `${T.time}\n`
+      + `ALT   ${T.altitude}\n`
+      + `VEL   ${T.velocity}  (${T.velocityMs})\n`
+      + `MASS  ${T.mass}\n`
+      + `Q     ${T.q}\n`
+      + `${T.stage}   orbit ${(T.orbitPct * 100).toFixed(0)}%\n`
+      + `\nwarp ${f.warp.toFixed(2)}  hole ${f.hole.toFixed(2)}  thrust ${f.thrust.toFixed(2)}\n`
+      + `fps  ${fps.toFixed(0)}  ${scene.stats().backing}`;
+
+    if (pinned != null) { window.__flightFrames = (window.__flightFrames || 0) + 1; }
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+} catch (e) { fail(e); }
+</script>
+</body>
+</html>

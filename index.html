@@ -22,9 +22,15 @@
 
 <a class="skip" href="#work">Skip to content</a>
 
+<!-- The flight runs behind the entire page, not just the hero: scrolling the
+     document flies the mission. Fixed and pointer-events:none so it never
+     interferes with the content on top of it. -->
+<canvas id="gl" aria-hidden="true"></canvas>
+
+<aside id="telemetry" class="no-print" aria-hidden="true"></aside>
+
 <!-- ====================================================================== -->
 <section id="hero">
-  <canvas id="gl" aria-hidden="true"></canvas>
   <div class="wrap">
     <!-- pathLength="100" on every stroke is load-bearing: it normalises each
          glyph so one stroke-dasharray value drives the draw-on for all of

@@ -1,0 +1,88 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>black hole test</title>
+<style>
+  html,body{margin:0;height:100%;background:#000;overflow:hidden}
+  canvas{display:block;width:100vw;height:100vh}
+  #err{position:fixed;inset:0;padding:24px;color:#ff6b6b;font:12px/1.5 ui-monospace,Consolas,monospace;
+       white-space:pre-wrap;overflow:auto;background:#0a0a0f;display:none}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<pre id="err"></pre>
+<script type="module">
+// Isolated harness for the Schwarzschild renderer. Query params let a
+// screenshot run pin the camera:  ?dist=9&tilt=0.28&steps=280&t=3
+import { BLACKHOLE_FRAG, FULLSCREEN_VERT, BH_STEPS } from '../js/flight/blackhole.js';
+import { compileProgram, m4, v3 } from '../js/flight/gfx.js';
+
+const q = new URLSearchParams(location.search);
+const canvas = document.getElementById('c');
+const gl = canvas.getContext('webgl2', { antialias: false, alpha: false });
+const errEl = document.getElementById('err');
+
+function fail(e) {
+  errEl.style.display = 'block';
+  errEl.textContent = String(e && e.stack || e);
+  console.error(e);
+}
+
+if (!gl) fail(new Error('no webgl2'));
+else {
+  try {
+    const { program, uniforms } = compileProgram(gl, FULLSCREEN_VERT, BLACKHOLE_FRAG, 'blackhole');
+    const vao = gl.createVertexArray();
+
+    const dist = Number(q.get('dist') || 9);
+    const tilt = Number(q.get('tilt') || 0.30);
+    const steps = Number(q.get('steps') || BH_STEPS.high);
+    const fixedT = q.has('t') ? Number(q.get('t')) : null;
+
+    function resize() {
+      const dpr = Math.min(devicePixelRatio || 1, 2);
+      canvas.width = Math.round(innerWidth * dpr);
+      canvas.height = Math.round(innerHeight * dpr);
+      gl.viewport(0, 0, canvas.width, canvas.height);
+    }
+    addEventListener('resize', resize);
+    resize();
+
+    function frame(now) {
+      const t = fixedT != null ? fixedT : now * 0.001;
+      const camPos = [0, 0.0, dist];
+      // Look at the origin.
+      const fwd = v3.normalize(v3.scale(camPos, -1));
+      const right = v3.normalize(v3.cross([0, 1, 0], fwd));
+      const up = v3.cross(fwd, right);
+      // Column-major mat3: columns are right, up, -forward
+      const basis = new Float32Array([
+        right[0], right[1], right[2],
+        up[0], up[1], up[2],
+        -fwd[0], -fwd[1], -fwd[2],
+      ]);
+
+      gl.useProgram(program);
+      gl.bindVertexArray(vao);
+      gl.uniform2f(uniforms.u_res, canvas.width, canvas.height);
+      gl.uniform1f(uniforms.u_time, t);
+      gl.uniform3f(uniforms.u_camPos, camPos[0], camPos[1], camPos[2]);
+      gl.uniformMatrix3fv(uniforms.u_camBasis, false, basis);
+      gl.uniform1f(uniforms.u_fov, 0.85);
+      gl.uniform1i(uniforms.u_steps, steps);
+      gl.uniform1f(uniforms.u_diskInner, 3.0);
+      gl.uniform1f(uniforms.u_diskOuter, 13.0);
+      gl.uniform1f(uniforms.u_intensity, 1.0);
+      gl.uniform1f(uniforms.u_diskTilt, tilt);
+      gl.drawArrays(gl.TRIANGLES, 0, 3);
+      if (fixedT == null) requestAnimationFrame(frame);
+      else window.__bhReady = true;
+    }
+    requestAnimationFrame(frame);
+  } catch (e) { fail(e); }
+}
+</script>
+</body>
+</html>

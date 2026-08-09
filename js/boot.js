@@ -3,7 +3,7 @@
 // second ticker, because two rAF loops racing each other is the single most
 // common way these pages develop frame-pacing bugs.
 
-import { initGL } from './gl.js';
+import { mountFlight } from './flight/index.js';
 import { mountTerminal } from './terminal.js';
 import { mountArcade } from './arcade.js';
 import { audio } from './audio.js';
@@ -42,13 +42,13 @@ function applyMotion() {
     btn.textContent = `motion: ${motion}`;
     btn.setAttribute('aria-pressed', String(motion !== 'full'));
   }
-  if (gl) gl.setAmp(motion === 'full' ? 1 : motion === 'reduced' ? 0.35 : 0);
   localStorage.setItem('motion', motion);
 }
 
 /* ---------------------------------------------------------------- the loop */
-let gl = null;
-let heroVisible = true;
+let flight = null;
+let visible = true;
+let gameOpen = false;
 let scrollP = 0;
 const frames = [];
 let tier = localStorage.getItem('tier') || 'high';
@@ -61,17 +61,24 @@ function frame(now) {
   const dt = Math.min(64, now - last);
   last = now;
 
-  if (gl && heroVisible && motion !== 'off') gl.draw(now);
+  // The flight runs behind the whole page, so it renders whenever the tab is
+  // visible rather than only over the hero.
+  //
+  // Except while a game is open. Rendering a rocket behind a game nobody is
+  // looking at costs a game that feels sluggish, and it measurably starves
+  // input handling: with the flight running, clicks inside the arcade took
+  // seconds to register.
+  if (flight && visible && !gameOpen) flight.render(dt, now);
 
   // Adaptive tier. Boot optimistically, sample 40 frames, then commit and
   // persist so a repeat visit starts correct instead of flickering down.
-  if (!probed && gl) {
+  if (!probed && flight) {
     frames.push(dt);
     if (frames.length === 40) {
       const sorted = [...frames].sort((a, b) => a - b);
       const p75 = sorted[Math.floor(sorted.length * 0.75)];
       const next = p75 > 22 ? 'low' : p75 > 13 ? 'mid' : 'high';
-      if (next !== tier) { tier = next; gl.setTier(tier); }
+      if (next !== tier) { tier = next; flight.setTier(tier); }
       localStorage.setItem('tier', tier);
       probed = true;
     }
@@ -245,11 +252,13 @@ function drawHUD(dt) {
   hudAcc += dt; hudFrames += 1;
   if (hudAcc < 500) return;
   const fps = (hudFrames * 1000) / hudAcc;
-  const g = gl ? gl.stats() : null;
+  const g = flight ? flight.stats() : null;
   hud.innerHTML = `<b>frame</b> ${(hudAcc / hudFrames).toFixed(1)}ms  ${fps.toFixed(0)}fps
 <b>tier</b>  ${tier}${probed ? '' : ' (probing)'}
 <b>gl</b>    ${g ? g.backing : 'none'}
 <b>px</b>    ${g ? (g.pixels / 1e6).toFixed(2) + 'M' : '-'}
+<b>phase</b> ${g ? g.phase : '-'}  p=${g ? g.p.toFixed(3) : '-'}
+<b>bh</b>    ${g ? g.bhSteps + ' steps' : '-'}
 <b>gpu</b>   ${g ? String(g.renderer).slice(0, 26) : '-'}
 <b>motion</b>${motion}`;
   hudAcc = 0; hudFrames = 0;
@@ -290,23 +299,42 @@ function main() {
   }, { threshold: 0.4 });
   sections.forEach((s) => navIO.observe(s));
 
-  // Shader. Stops entirely once the hero is off screen.
+  // The flight. Scroll position is the mission clock.
   const canvas = $('#gl');
-  gl = initGL(canvas, { hours: stats.rhythm?.byHour || [], tier });
-  if (gl) {
-    new IntersectionObserver(([e]) => { heroVisible = e.isIntersecting; }, { threshold: 0 })
-      .observe($('#hero'));
-    new ResizeObserver(() => gl.resize()).observe(canvas);
+  const telemetry = $('#telemetry');
+  flight = mountFlight({
+    canvas,
+    hud: telemetry,
+    motion: () => motion,
+  });
+  if (flight) {
+    new ResizeObserver(() => flight.resize()).observe(canvas);
+    // Telemetry appears once the vehicle does, and leaves before the black hole.
+    telemetry.classList.add('on');
+  } else {
+    // No WebGL2: the CSS poster gradient stays and the page reads normally.
+    canvas.style.position = 'fixed';
+    telemetry?.remove();
   }
 
-  addEventListener('scroll', () => {
+  const onScroll = () => {
     scrollP = scrollY / Math.max(1, document.body.scrollHeight - innerHeight);
-    if (gl) gl.setScroll(scrollP);
-  }, { passive: true });
+    flight?.setScroll(scrollP);
+    if (telemetry) telemetry.classList.toggle('on', scrollP > 0.02 && scrollP < 0.985);
+  };
+  addEventListener('scroll', onScroll, { passive: true });
+  onScroll();
 
-  document.addEventListener('visibilitychange', () => {
-    if (document.hidden) { heroVisible = false; }
-    else { heroVisible = !!$('#hero') && scrollY < innerHeight; }
+  document.addEventListener('visibilitychange', () => { visible = !document.hidden; });
+
+  // The arcade tells us when a game is up so the flight can stand down.
+  addEventListener('arcade:open', () => {
+    gameOpen = true;
+    $('#telemetry')?.classList.remove('on');
+  });
+  addEventListener('arcade:close', () => {
+    gameOpen = false;
+    onScroll();
   });
 
   // Controls

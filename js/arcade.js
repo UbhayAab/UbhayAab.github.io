@@ -133,6 +133,8 @@ export function mountArcade({ stats, bench, subscribe, audio }) {
     if (live) { live.destroy?.(); live = null; }
     stage.innerHTML = '';
     stage.hidden = false;
+    // Lets the page stand the flight down while a game has focus.
+    dispatchEvent(new CustomEvent('arcade:open', { detail: { id } }));
 
     const shell = el('div', 'card');
     shell.style.marginTop = '26px';
@@ -146,6 +148,7 @@ export function mountArcade({ stats, bench, subscribe, audio }) {
     stage.appendChild(shell);
     shell.querySelector('[data-close]').addEventListener('click', () => {
       live?.destroy?.(); live = null; stage.hidden = true; stage.innerHTML = '';
+      dispatchEvent(new CustomEvent('arcade:close'));
     });
 
     const host = shell.querySelector('[data-host]');
