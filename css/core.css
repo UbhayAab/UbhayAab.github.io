@@ -164,12 +164,28 @@ h2 {
 section { z-index: 1; }
 #hero .wrap { position: relative; z-index: 1; }
 
-/* Text needs its own ground once there is a rocket behind it. A soft scrim
-   under each section keeps contrast without hiding the flight. */
+/* Text needs its own ground once there is a rocket behind it, but the scrim
+   must not become the page.
+   At 0.72 opacity across the full width it was swallowing the flight: the warp
+   tunnel rendered correctly underneath and reached the viewer as a faint blue
+   haze. Cards and tables already carry their own opaque panels, so the scrim
+   only has to protect loose text. It is now weighted to the left column where
+   that text actually lives and fades out across the right of the frame, which
+   is where the vehicle flies. */
 section .wrap > * { position: relative; }
 #signal, #work, #rhythm, #arcade, #receipts, #contact {
-  background: linear-gradient(180deg, transparent, rgba(6, 7, 11, 0.72) 12%, rgba(6, 7, 11, 0.72) 88%, transparent);
+  background:
+    linear-gradient(90deg,
+      rgba(6, 7, 11, 0.80) 0%,
+      rgba(6, 7, 11, 0.66) 30%,
+      rgba(6, 7, 11, 0.30) 58%,
+      rgba(6, 7, 11, 0.06) 78%,
+      transparent 92%),
+    linear-gradient(180deg, transparent, rgba(6, 7, 11, 0.22) 10%, rgba(6, 7, 11, 0.22) 90%, transparent);
 }
+
+/* Cheap insurance for any loose text that ends up over a bright streak. */
+section h2, section .lede, .eyebrow { text-shadow: 0 1px 18px rgba(6, 7, 11, 0.85); }
 
 /* Telemetry readout, styled like a launch webcast. */
 #telemetry {
