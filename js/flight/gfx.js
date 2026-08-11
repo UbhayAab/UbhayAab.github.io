@@ -81,12 +81,20 @@ export const m4 = {
     return m;
   },
 
-  /** Compose translate * rotZ * rotY * rotX * scale, the order a rocket wants. */
-  compose(pos, rot, scale) {
+  /**
+   * Compose translate * rotY(heading) * rotZ(pitch) * rotX * rotY(roll) * scale.
+   *
+   * The innermost rotY is a roll about the body's own long axis, applied
+   * before anything tilts it. Without that innermost term there is no way to
+   * roll the vehicle at all: the outer rotY is a heading change once the body
+   * is already pitched over, which yaws it rather than rolling it.
+   */
+  compose(pos, rot, scale, roll = 0) {
     let m = m4.translation(pos[0], pos[1], pos[2]);
     m = m4.multiply(m, m4.rotationY(rot[1]));
     m = m4.multiply(m, m4.rotationZ(rot[2]));
     m = m4.multiply(m, m4.rotationX(rot[0]));
+    if (roll) m = m4.multiply(m, m4.rotationY(roll));
     return m4.multiply(m, m4.scaling(scale[0], scale[1], scale[2]));
   },
 

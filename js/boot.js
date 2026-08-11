@@ -26,6 +26,7 @@ const bytes = (v) => {
   while (x >= 1024 && i < u.length - 1) { x /= 1024; i += 1; }
   return `${x < 10 ? x.toFixed(1) : Math.round(x)} ${u[i]}`;
 };
+const clamp = (v, lo, hi) => (v < lo ? lo : v > hi ? hi : v);
 
 /* ------------------------------------------------------------------ motion */
 // Three states, not a boolean. "Reduced" keeps colour and short fades and
@@ -224,6 +225,115 @@ function fillHeat() {
   }
 }
 
+/* ------------------------------------------------------------------ person */
+const P = window.PROFILE || null;
+
+function fillWho() {
+  if (!P) return;
+  const name = $('#who-name');
+  const role = $('#who-role');
+  const sum = $('#who-summary');
+  if (name) name.textContent = `${P.name}.`;
+  if (role) role.innerHTML = `${P.role} &middot; ${P.location}`;
+  if (sum) sum.innerHTML = P.summary.map((s) => `<p>${s}</p>`).join('');
+}
+
+function fillVentures() {
+  const grid = $('#ventures-grid');
+  if (!grid || !P) return;
+  P.ventures.forEach((v, i) => {
+    const c = el('article', 'card rise');
+    c.style.setProperty('--d', `${120 + i * 70}ms`);
+    c.innerHTML = `
+      <span class="spine"></span>
+      <div class="row" style="margin-bottom:14px">
+        <span class="mono">${v.role}</span>
+      </div>
+      <h3>${v.title}</h3>
+      <p>${v.description}</p>
+      <span class="metric">${v.metric}<small>${v.metricLabel}</small></span>`;
+    grid.appendChild(c);
+  });
+}
+
+function fillVision() {
+  const grid = $('#vision-grid');
+  if (!grid || !P) return;
+  P.vision.forEach((v, i) => {
+    const c = el('article', 'card rise');
+    c.style.setProperty('--d', `${100 + i * 55}ms`);
+    c.innerHTML = `
+      <span class="spine" style="background:${v.color}"></span>
+      <div class="row" style="margin-bottom:12px"><span class="mono">${v.subtitle}</span></div>
+      <h3>${v.title}</h3>
+      <p style="margin-bottom:0">${v.desc}</p>`;
+    grid.appendChild(c);
+  });
+
+  const ars = $('#arsenal');
+  if (ars) {
+    ars.innerHTML = `<div class="grid">${P.arsenal.map((a) => `
+      <div class="card" style="padding:20px 22px">
+        <div class="row" style="margin-bottom:12px"><span class="mono">${a.category}</span></div>
+        <div class="chips">${a.items.map((i) => `<span class="chip">${i}</span>`).join('')}</div>
+      </div>`).join('')}</div>`;
+  }
+}
+
+/**
+ * Career, as a horizontal rail.
+ *
+ * The section is made tall enough that the vertical distance scrolled equals
+ * the horizontal distance the track has to travel, so the mapping is 1:1 and
+ * the cards move at the speed the wheel says they should.
+ */
+function mountCareer() {
+  const section = $('#career');
+  const track = $('#career-track');
+  const rail = $('#career-rail');
+  if (!section || !track || !P) return null;
+
+  P.experience.forEach((e) => {
+    const c = el('article', 'hcard');
+    c.innerHTML = `
+      <span class="spine"></span>
+      <p class="role">${e.role}</p>
+      <h3>${e.company}</h3>
+      <p class="period">${e.product} &middot; ${e.period}</p>
+      <p class="sum">${e.summary}</p>
+      <ul>${e.points.map((x) => `<li>${x}</li>`).join('')}</ul>
+      <div class="chips">${e.tags.map((t) => `<span class="chip">${t}</span>`).join('')}</div>
+      <span class="metric">${e.metric}<small>${e.metricLabel}</small></span>`;
+    track.appendChild(c);
+  });
+
+  let travel = 0;
+  const measure = () => {
+    // How far the track has to move for its last card to reach the right edge.
+    travel = Math.max(0, track.scrollWidth - innerWidth + 24);
+    section.style.height = `${innerHeight + travel}px`;
+    section.classList.add('ready');
+  };
+  measure();
+  new ResizeObserver(measure).observe(track);
+  addEventListener('resize', measure, { passive: true });
+
+  return {
+    /** @returns {number} -1..1 lateral hint for the flight, 0 when inactive */
+    update() {
+      const r = section.getBoundingClientRect();
+      const total = r.height - innerHeight;
+      if (total <= 0) return 0;
+      const t = clamp(-r.top / total, 0, 1);
+      track.style.transform = `translate3d(${-t * travel}px,0,0)`;
+      if (rail) rail.style.width = `${(t * 100).toFixed(1)}%`;
+      // Active only while the section is actually pinned on screen.
+      const live = r.top <= 1 && r.bottom >= innerHeight;
+      return live ? t * 2 - 1 : 0;
+    },
+  };
+}
+
 function fillReceipts() {
   const grid = $('#receipts-grid');
   if (!grid) return;
@@ -270,6 +380,8 @@ function main() {
   // wired, otherwise those elements are never observed and sit at opacity 0
   // for the life of the page. That is exactly what the arcade grid did.
   fillTicker(); fillBench(); fillWork(); fillHeat(); fillReceipts();
+  fillWho(); fillVentures(); fillVision();
+  const career = mountCareer();
   mountTerminal({ stats, bench, projects: S.projects });
   mountArcade({ stats, bench, subscribe: (fn) => { subs.add(fn); return () => subs.delete(fn); }, audio });
 
@@ -320,6 +432,9 @@ function main() {
   const onScroll = () => {
     scrollP = scrollY / Math.max(1, document.body.scrollHeight - innerHeight);
     flight?.setScroll(scrollP);
+    // Horizontal sections slide the vehicle sideways, so the sideways motion
+    // of the content and the sideways motion of the rocket are the same event.
+    flight?.setLateral(career ? career.update() : 0);
     if (telemetry) telemetry.classList.toggle('on', scrollP > 0.02 && scrollP < 0.985);
   };
   addEventListener('scroll', onScroll, { passive: true });

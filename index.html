@@ -74,9 +74,43 @@
 </section>
 
 <!-- ====================================================================== -->
+<section id="who">
+  <div class="wrap">
+    <p class="eyebrow rise">01 / who</p>
+    <h2 class="rise" style="--d:60ms" id="who-name">Ubhay Anand Vatsa.</h2>
+    <p class="lede rise" style="--d:100ms" id="who-role"></p>
+    <div class="prose rise" style="--d:160ms" id="who-summary"></div>
+  </div>
+</section>
+
+<!-- Horizontal scroll: the section pins and the track moves sideways while the
+     page scrolls down. The vehicle slides laterally in sync, so the sideways
+     motion is motivated by the flight rather than decorating it. -->
+<section id="career" class="hscroll">
+  <div class="hscroll-sticky">
+    <div class="wrap hscroll-head">
+      <p class="eyebrow">02 / career</p>
+      <h2>Three systems,<br>taken end to end.</h2>
+      <p class="hscroll-hint mono">scroll &rarr;</p>
+    </div>
+    <div class="hscroll-track" id="career-track"></div>
+    <div class="hscroll-rail"><i id="career-rail"></i></div>
+  </div>
+</section>
+
+<!-- ====================================================================== -->
+<section id="ventures">
+  <div class="wrap">
+    <p class="eyebrow rise">03 / ventures</p>
+    <h2 class="rise" style="--d:60ms">Things built<br>outside a job.</h2>
+    <div class="grid" id="ventures-grid"></div>
+  </div>
+</section>
+
+<!-- ====================================================================== -->
 <section id="signal">
   <div class="wrap">
-    <p class="eyebrow rise">01 / the machine</p>
+    <p class="eyebrow rise">04 / the machine</p>
     <h2 class="rise" style="--d:60ms">File size does not<br>predict throughput.</h2>
     <p class="lede rise" style="--d:120ms">
       Every model installed on this laptop, benchmarked the same way, on the same prompt,
@@ -102,7 +136,7 @@
 <!-- ====================================================================== -->
 <section id="work">
   <div class="wrap">
-    <p class="eyebrow rise">02 / work</p>
+    <p class="eyebrow rise">05 / work</p>
     <h2 class="rise" style="--d:60ms">Four things worth<br>opening.</h2>
     <p class="lede rise" style="--d:120ms">
       Prose is written by hand. Every number is read live from the GitHub API at build time,
@@ -118,7 +152,7 @@
 <!-- ====================================================================== -->
 <section id="rhythm">
   <div class="wrap">
-    <p class="eyebrow rise">03 / rhythm</p>
+    <p class="eyebrow rise">06 / rhythm</p>
     <h2 class="rise" style="--d:60ms">When the commits land.</h2>
     <p class="lede rise" style="--d:120ms" id="rhythm-note"></p>
     <div class="card rise" style="--d:180ms;padding:30px 26px">
@@ -128,9 +162,20 @@
 </section>
 
 <!-- ====================================================================== -->
+<section id="vision">
+  <div class="wrap">
+    <p class="eyebrow rise">07 / thesis</p>
+    <h2 class="rise" style="--d:60ms">Five bets that are<br>the same bet.</h2>
+    <p class="lede rise" style="--d:120ms">What lets a civilisation scale past its current limits. Not five hobbies.</p>
+    <div class="grid" id="vision-grid"></div>
+    <div class="rise" style="--d:200ms;margin-top:34px" id="arsenal"></div>
+  </div>
+</section>
+
+<!-- ====================================================================== -->
 <section id="arcade">
   <div class="wrap">
-    <p class="eyebrow rise">04 / arcade</p>
+    <p class="eyebrow rise">08 / arcade</p>
     <h2 class="rise" style="--d:60ms">Five games built out<br>of the same numbers.</h2>
     <p class="lede rise" style="--d:120ms">
       Not decoration. Each one is a real problem from the work above, shrunk to
@@ -145,7 +190,7 @@
 <!-- ====================================================================== -->
 <section id="receipts">
   <div class="wrap">
-    <p class="eyebrow rise">05 / receipts</p>
+    <p class="eyebrow rise">09 / receipts</p>
     <h2 class="rise" style="--d:60ms">Every claim, and how<br>it was measured.</h2>
     <p class="lede rise" style="--d:120ms">
       Including the ones that did not go well. A page that only reports its wins is
@@ -158,7 +203,7 @@
 <!-- ====================================================================== -->
 <section id="contact">
   <div class="wrap">
-    <p class="eyebrow rise">06 / end</p>
+    <p class="eyebrow rise">10 / end</p>
     <h2 class="rise" style="--d:60ms">Say something.</h2>
     <p class="lede rise" style="--d:120ms">
       Press <kbd class="mono">`</kbd> anywhere on this page for a terminal that knows
@@ -178,9 +223,13 @@
 
 <nav class="dots no-print" aria-label="Section navigation">
   <a href="#hero" aria-label="Top"></a>
+  <a href="#who" aria-label="Who"></a>
+  <a href="#career" aria-label="Career"></a>
+  <a href="#ventures" aria-label="Ventures"></a>
   <a href="#signal" aria-label="The machine"></a>
   <a href="#work" aria-label="Work"></a>
   <a href="#rhythm" aria-label="Rhythm"></a>
+  <a href="#vision" aria-label="Thesis"></a>
   <a href="#arcade" aria-label="Arcade"></a>
   <a href="#receipts" aria-label="Receipts"></a>
   <a href="#contact" aria-label="Contact"></a>
@@ -211,6 +260,7 @@
 </noscript>
 
 <script src="./data/site-data.js"></script>
+<script src="./data/profile.js"></script>
 <script type="module" src="./js/boot.js"></script>
 </body>
 </html>

@@ -17,22 +17,25 @@ export function mountFlight({ canvas, hud, subscribe, motion = () => 'full' }) {
 
   let targetP = 0;
   let smoothP = 0;
+  let targetLat = 0;
+  let smoothLat = 0;
   let lastPhase = null;
 
   // Damped scroll. The raw value is fine for CSS but jumps on a trackpad
   // flick, and a rocket that teleports looks worse than one that lags.
   function tick(dt) {
     const m = motion();
-    if (m === 'off') { smoothP = targetP; }
+    if (m === 'off') { smoothP = targetP; smoothLat = targetLat; }
     else {
       const k = m === 'reduced' ? 0.35 : 0.12;
       smoothP += (targetP - smoothP) * Math.min(1, k * (dt / 16.67));
+      smoothLat += (targetLat - smoothLat) * Math.min(1, 0.09 * (dt / 16.67));
     }
   }
 
   function render(dt, now) {
     tick(dt);
-    const f = director.state(smoothP);
+    const f = director.state(smoothP, smoothLat);
     scene.render(f, Math.min(0.05, dt / 1000), now);
     if (hud) paintHud(f);
   }
@@ -55,6 +58,7 @@ export function mountFlight({ canvas, hud, subscribe, motion = () => 'full' }) {
   return {
     render,
     setScroll(p) { targetP = clamp(p, 0, 1); },
+    setLateral(v) { targetLat = clamp(v, -1, 1); },
     resize: () => scene.resize(),
     setTier: (t) => scene.setTier(t),
     stats: () => ({ ...scene.stats(), phase: lastPhase, p: smoothP }),

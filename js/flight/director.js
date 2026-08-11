@@ -65,8 +65,9 @@ export function createDirector() {
     return { low, high };
   }
 
-  function state(p) {
+  function state(p, lateral = 0) {
     p = clamp(p, 0, 1);
+    lateral = clamp(lateral, -1, 1);
     const phase = phaseOf(p);
     const t = missionTime(p);
     const tel = sampleAt(traj, Math.max(0.1, t));
@@ -130,17 +131,23 @@ export function createDirector() {
     // After it, the subject is the ship alone, centred on its own midpoint.
     const focusY = lerp(0, 97 - 60 + 24, smoothstep(0.335, 0.470, p));
     const camDist = lerp(245, 320, smoothstep(0.10, 0.56, p)) * lerp(1, 0.68, warp);
-    const camHeight = lerp(54, 130, smoothstep(0.05, 0.45, p));
-    const orbitA = 0.5 + p * 2.1;
+    // Rises, then drops below the vehicle through staging for a low angle, then
+    // climbs again. A camera that only ever goes up is a camera nobody notices.
+    const camHeight = lerp(54, 130, smoothstep(0.05, 0.32, p))
+      - smoothstep(0.33, 0.42, p) * 165 * (1 - smoothstep(0.45, 0.56, p))
+      + smoothstep(0.50, 0.66, p) * 60;
+    // Not a constant sweep. It swings fastest around staging, where there are
+    // two bodies to see, and settles as the ship coasts.
+    const orbitA = 0.5 + p * 1.35 + smoothstep(0.30, 0.50, p) * 1.25 + smoothstep(0.55, 0.72, p) * 0.5;
     const camPos = [
-      Math.sin(orbitA) * camDist,
+      Math.sin(orbitA) * camDist + lateral * 60,
       camHeight + focusY * 0.55,
       Math.cos(orbitA) * camDist,
     ];
     // Offset the aim point early on so the vehicle sits right of centre and
     // leaves the left column clear for the headline.
     const camTarget = [
-      lerp(-52, 0, smoothstep(0.02, 0.20, p)),
+      lerp(-52, 0, smoothstep(0.02, 0.20, p)) + lateral * 150,
       lerp(62, 34, smoothstep(0.0, 0.2, p)) + focusY,
       0,
     ];
@@ -161,6 +168,16 @@ export function createDirector() {
     // single clearest tell that a launch animation is faked.
     const pitch = tel.pitch || 0;
     const boosterVisible = p < 0.500;
+
+    // Roll program. Real vehicles roll shortly after clearing the tower to
+    // line the flight azimuth up with the range, and it is the single cheapest
+    // thing that stops an ascent looking like a cardboard cut-out sliding up
+    // the screen: the far side of the hull comes round into the light.
+    const rollProgram = smoothstep(0.128, 0.235, p) * Math.PI * 1.7;
+    // A slow continuous roll once out of the atmosphere, as an uncontrolled
+    // coasting body would have.
+    const coastRoll = smoothstep(0.35, 0.60, p) * 1.4;
+    const roll = rollProgram + coastRoll;
 
     // The vehicle's own up-axis once pitched. rotZ(-pitch) applied to (0,1,0).
     //
@@ -218,18 +235,23 @@ export function createDirector() {
       // the two layers are composed by draw order rather than sharing a frame.
       holeSceneCam = [0, 26, 300];
       holeSceneTarget = [0, 18, 0];
-      const arrive = smoothstep(0.652, 0.960, p);
-      // Flies in from the right, decelerates, and settles broadside on as it
-      // enters orbit.
+      const arrive = smoothstep(0.652, 0.985, p);
+
+      // An actual orbit rather than a straight line to a parking spot: the
+      // ship sweeps an arc around the hole, far and small on the way in, close
+      // and large as it comes round. The hole is a fullscreen background pass
+      // with the depth buffer cleared after it, so nothing can truly pass
+      // behind it; the arc plus the change in scale is what sells the orbit.
+      const th = lerp(-2.45, 0.42, arrive);
+      const orbR = 155;
       holeShipPos = [
-        lerp(-430, 92, arrive),
-        lerp(140, -30, arrive),
-        lerp(-330, 126, arrive),
+        Math.cos(th) * orbR,
+        18 + Math.sin(th) * orbR * 0.34 - 40,
+        lerp(-320, 120, arrive),
       ];
-      // Nose toward the hole and broadside to the camera, so the silhouette
-      // reads as a ship: nosecone, flaps, engine cluster. Rotated further
-      // round it becomes an anonymous cylinder seen end on.
-      holeShipRot = [0, lerp(-0.30, -0.62, arrive), lerp(-1.02, -1.28, arrive)];
+      // Banked along the path, nose leading. The exhaust direction is derived
+      // from this, so the plume follows the orbit for free.
+      holeShipRot = [0, lerp(-0.10, -0.80, arrive), lerp(-1.12, -1.52, arrive)];
     }
 
     return {
@@ -308,6 +330,7 @@ export function createDirector() {
 
       // vehicle
       showVehicle: true,
+      roll: holeShip ? 0.4 + approach * 1.1 : roll,
       boosterVisible: boosterVisible && !holeShip,
       boosterPos,
       boosterRot: [0, 0, -pitch * (1 - sepP) - boosterFlip],

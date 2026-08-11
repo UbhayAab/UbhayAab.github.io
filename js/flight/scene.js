@@ -231,35 +231,72 @@ void main() {
 
 // Additive plume. One instanced quad per particle; the instance vec4 carries
 // position and life.
+// Plume.
+//
+// Round billboards can never look like a rocket exhaust no matter which
+// direction they are emitted in: a plume is a long cone along the nozzle axis,
+// and a cloud of spheres reads as a ball stuck on the end of the vehicle.
+// Each quad is therefore stretched along the screen projection of the exhaust
+// axis, so the flame is directional by construction rather than by hoping the
+// particles spread out that way.
 const PLUME_VERT = `#version 300 es
-layout(location=0) in vec3 aPos;
-layout(location=2) in vec4 aInst;   // xyz = offset, w = life 0..1
+layout(location=0) in vec3 aPos;    // unit quad, x across, y along
+layout(location=2) in vec4 aInst;   // xyz = position, w = life 0..1
 uniform mat4 uProj, uView;
-uniform vec3 uRight, uUp;
+uniform vec3 uCamPos;
+uniform vec3 uExhaust;              // world-space exhaust direction
 uniform float uScale;
+uniform float uStretch;
 out float vLife;
+out vec2 vUv;
 void main() {
   vLife = aInst.w;
-  float s = uScale * mix(0.35, 2.6, 1.0 - aInst.w);
-  vec3 world = aInst.xyz + (uRight * aPos.x + uUp * aPos.y) * s;
+  vUv = aPos.xy;
+
+  float age = 1.0 - aInst.w;
+
+  vec3 view = normalize(uCamPos - aInst.xyz);
+  // Component of the exhaust axis lying in the screen plane. If the axis is
+  // pointing almost at the camera there is nothing to stretch along, so fall
+  // back to any perpendicular and the sprite stays round, which is correct.
+  vec3 along = uExhaust - view * dot(uExhaust, view);
+  float alen = length(along);
+  vec3 a = alen > 1e-4 ? along / alen : normalize(cross(view, vec3(0.0, 1.0, 0.0)));
+  vec3 b = normalize(cross(view, a));
+
+  // Cone: narrow at the throat, widening downstream, and stretched along the
+  // axis so consecutive particles overlap into a continuous column.
+  float width = uScale * mix(0.30, 1.35, age);
+  float length_ = uScale * uStretch * mix(0.55, 2.4, age);
+
+  vec3 world = aInst.xyz + b * (aPos.x * width) + a * (aPos.y * length_ + length_ * 0.6);
   gl_Position = uProj * uView * vec4(world, 1.0);
 }`;
 
 const PLUME_FRAG = `#version 300 es
 precision highp float;
 in float vLife;
+in vec2 vUv;
 uniform float uIntensity;
 out vec4 outColor;
 void main() {
-  // Soft round sprite without a texture.
-  vec2 d = gl_PointCoord;  // unused, kept for clarity
   float life = clamp(vLife, 0.0, 1.0);
-  vec3 hot  = vec3(1.0, 0.94, 0.80);
-  vec3 mid  = vec3(1.0, 0.52, 0.14);
-  vec3 cool = vec3(0.32, 0.12, 0.06);
-  vec3 col = mix(hot, mid, smoothstep(0.0, 0.35, 1.0-life));
-  col = mix(col, cool, smoothstep(0.35, 1.0, 1.0-life));
-  float a = life * life * uIntensity;
+  float age = 1.0 - life;
+
+  // Soft edges across the width, softer along the length toward the tail.
+  float across = 1.0 - smoothstep(0.35, 1.0, abs(vUv.x));
+  float alongT = smoothstep(1.0, -0.6, vUv.y);
+  float shape = across * alongT;
+
+  vec3 core = vec3(1.0, 0.97, 0.90);
+  vec3 mid  = vec3(1.0, 0.55, 0.16);
+  vec3 cool = vec3(0.35, 0.11, 0.04);
+  vec3 col = mix(core, mid, smoothstep(0.0, 0.30, age));
+  col = mix(col, cool, smoothstep(0.30, 1.0, age));
+  // The throat stays white hot regardless of age.
+  col = mix(col, vec3(1.0), across * alongT * (1.0 - age) * 0.55);
+
+  float a = shape * life * life * uIntensity;
   outColor = vec4(col * a, a);
 }`;
 
@@ -386,15 +423,21 @@ export function createScene(canvas, { tier = 'high' } = {}) {
 
   function stepParticles(dt) {
     let n = 0;
+    // Damping must be isotropic. Damping vy at 0.99 while vx and vz decayed at
+    // 0.985 slowly rotated every particle's velocity toward world vertical, so
+    // a plume that left the nozzle correctly aligned bent back toward straight
+    // down as it aged. On a vehicle 40 degrees into its gravity turn that is
+    // exactly the "flame does not match the rocket" everybody could see.
+    const damp = 0.988;
     for (const p of particles) {
       if (p.life <= 0) continue;
-      p.life -= dt * 1.15;
+      p.life -= dt * 0.85;
       if (p.life <= 0) continue;
       p.x += p.vx * dt;
       p.y += p.vy * dt;
       p.z += p.vz * dt;
-      p.vx *= 0.985; p.vz *= 0.985;
-      p.vy *= 0.99;
+      p.vx *= damp; p.vz *= damp;
+      p.vy *= damp;
       instData[n * 4] = p.x;
       instData[n * 4 + 1] = p.y;
       instData[n * 4 + 2] = p.z;
@@ -549,10 +592,10 @@ export function createScene(canvas, { tier = 'high' } = {}) {
         // the sky rather than from a baked albedo.
         const STEEL = [0.30, 0.325, 0.365];
         if (f.boosterVisible) {
-          drawMesh(meshes.booster, m4.compose(f.boosterPos, f.boosterRot, [1, 1, 1]),
+          drawMesh(meshes.booster, m4.compose(f.boosterPos, f.boosterRot, [1, 1, 1], f.roll || 0),
             STEEL, { rim: 0.5, metal: 0.86 });
         }
-        drawMesh(meshes.ship, m4.compose(f.shipPos, f.shipRot, [1, 1, 1]),
+        drawMesh(meshes.ship, m4.compose(f.shipPos, f.shipRot, [1, 1, 1], f.roll || 0),
           STEEL, { rim: 0.5, metal: 0.9 });
       }
     }
@@ -561,9 +604,11 @@ export function createScene(canvas, { tier = 'high' } = {}) {
     if (f.thrust > 0.01 && f.showVehicle) {
       // 33 engines make a far wider plume than 6, so the spread and rate scale
       // with which stage is actually burning.
+      // Tight lateral spread and high axial speed. A wide slow spray becomes a
+      // ball; a narrow fast column becomes a plume.
       const booster = f.thrustStage === 1;
-      const rate = Math.min(72, Math.round(f.thrust * (booster ? 46 : 16) * Math.min(dt, 0.05) * 60));
-      emit(rate, f.enginePos, booster ? 4.2 : 2.4, booster ? 62 : 34, f.exhaustDir || [0, -1, 0]);
+      const rate = Math.min(90, Math.round(f.thrust * (booster ? 60 : 22) * Math.min(dt, 0.05) * 60));
+      emit(rate, f.enginePos, booster ? 2.6 : 1.5, booster ? 165 : 95, f.exhaustDir || [0, -1, 0]);
     }
     const live = stepParticles(Math.min(dt, 0.05));
     if (live > 0 && f.showVehicle) {
@@ -576,10 +621,11 @@ export function createScene(canvas, { tier = 'high' } = {}) {
       gl.bufferSubData(gl.ARRAY_BUFFER, 0, instData, 0, live * 4);
       gl.uniformMatrix4fv(uniforms.uProj, false, proj);
       gl.uniformMatrix4fv(uniforms.uView, false, view);
-      gl.uniform3fv(uniforms.uRight, right);
-      gl.uniform3fv(uniforms.uUp, up);
-      gl.uniform1f(uniforms.uScale, f.thrustStage === 1 ? 3.4 : 2.0);
-      gl.uniform1f(uniforms.uIntensity, clamp(f.thrust, 0, 1) * 0.85);
+      gl.uniform3fv(uniforms.uCamPos, f.camPos);
+      gl.uniform3fv(uniforms.uExhaust, f.exhaustDir || [0, -1, 0]);
+      gl.uniform1f(uniforms.uScale, f.thrustStage === 1 ? 3.0 : 1.8);
+      gl.uniform1f(uniforms.uStretch, f.thrustStage === 1 ? 3.2 : 2.4);
+      gl.uniform1f(uniforms.uIntensity, clamp(f.thrust, 0, 1) * 0.9);
       gl.bindVertexArray(plume.vao);
       gl.drawElementsInstanced(gl.TRIANGLES, plume.count, plume.type, 0, live);
       gl.depthMask(true);
