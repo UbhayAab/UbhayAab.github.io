@@ -96,6 +96,22 @@ vec3 blackbody(float t) {
   return c;
 }
 
+// Smooth value noise. The disk used raw hash21(floor(p)) cells, which are
+// blocky by construction: gravitational lensing magnifies a grazing patch of
+// the disk enormously, so a single cell could land on screen as a visible
+// cluster of orange squares floating in empty space beside the hole. It also
+// left the disk edges stair-stepped.
+float vnoise(vec2 p) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  f = f * f * (3.0 - 2.0 * f);
+  float a = hash21(i);
+  float b = hash21(i + vec2(1.0, 0.0));
+  float c = hash21(i + vec2(0.0, 1.0));
+  float d = hash21(i + vec2(1.0, 1.0));
+  return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+}
+
 // Turbulent structure in the disk so it reads as gas rather than a gradient.
 float diskTexture(vec2 q, float r) {
   float a = atan(q.y, q.x);
@@ -105,7 +121,7 @@ float diskTexture(vec2 q, float r) {
   float amp = 0.5;
   vec2 p = vec2(wind * 1.6, r * 2.4);
   for (int i = 0; i < 4; i++) {
-    n += amp * (hash21(floor(p)) * 0.6 + 0.4 * hash21(floor(p * 1.7) + 11.0));
+    n += amp * vnoise(p);
     p *= 2.03;
     amp *= 0.5;
   }
@@ -131,12 +147,18 @@ void main() {
   float h2 = dot(hvec, hvec);
 
   // Impact parameter. Rays passing far from the hole barely bend, so they do
-  // not need anything like the full step budget. The critical value is
-  // 3*sqrt(3)*M = 2.598; everything past about five times that is nearly
-  // straight. This is where most of the screen is, and skipping it is the
+  // not need anything like the full step budget, and skipping them is the
   // difference between 0.5 fps and a usable frame.
+  //
+  // The cut has to start beyond the disk, not beyond the photon sphere. The
+  // critical impact parameter is 3*sqrt(3)*M = 2.598, but the disk reaches
+  // out to r = 11.5, so any ray with b up to roughly that can still cross it.
+  // Starting the reduction at b = 4 left mid-range rays integrated at 22
+  // steps, coarse enough to land their disk crossing in the wrong place, and
+  // they painted a stray clump of orange sitting in empty space beside the
+  // hole. It looked like a bug in the scene graph; it was under-integration.
   float b = sqrt(h2);
-  int budget = int(mix(float(u_steps), 22.0, smoothstep(4.0, 15.0, b)));
+  int budget = int(mix(float(u_steps), 24.0, smoothstep(u_diskOuter * 0.55, u_diskOuter + 6.0, b)));
 
   vec3 colour = vec3(0.0);
   float transmit = 1.0;

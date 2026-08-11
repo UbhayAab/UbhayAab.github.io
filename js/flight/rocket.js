@@ -192,12 +192,20 @@ export function buildStarship() {
     flaps.push(aft);
   }
 
+  // shipEngines() builds its bells around y = 0, which is the pad, not the
+  // ship's base. Merged untranslated they ended up 73.6 m below the ship: while
+  // the stack was mated they sat among the booster's own engines and nobody
+  // noticed, but once the ship flew alone its engine cluster trailed along
+  // behind it as a detached clump of nozzles in open space.
+  const engines = shipEngines();
+  translateMesh(engines, 0, G.hotRingTop, 0);
+
   const ship = merge(
     tube(r, r, G.shipBarrelTop - G.hotRingTop, 32, G.hotRingTop),
     disc(r, 32, G.hotRingTop, true),
     { positions: nosePositions, normals: noseNormals, indices: noseIndices },
     ...flaps,
-    shipEngines()
+    engines
   );
 
   // Rebase the ship so its own origin is its engine plane rather than the pad.

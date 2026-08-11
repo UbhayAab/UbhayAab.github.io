@@ -222,14 +222,14 @@ export function createDirector() {
       // Flies in from the right, decelerates, and settles broadside on as it
       // enters orbit.
       holeShipPos = [
-        lerp(470, -104, arrive),
-        lerp(150, -18, arrive),
-        lerp(-340, 150, arrive),
+        lerp(-430, 92, arrive),
+        lerp(140, -30, arrive),
+        lerp(-330, 126, arrive),
       ];
       // Nose toward the hole and broadside to the camera, so the silhouette
       // reads as a ship: nosecone, flaps, engine cluster. Rotated further
       // round it becomes an anonymous cylinder seen end on.
-      holeShipRot = [0, lerp(0.28, 0.58, arrive), lerp(-1.02, -1.30, arrive)];
+      holeShipRot = [0, lerp(-0.30, -0.62, arrive), lerp(-1.02, -1.28, arrive)];
     }
 
     return {
@@ -262,8 +262,8 @@ export function createDirector() {
       hole,
 
       // lighting, matched to the sky so reflections and fog agree with it
-      lightDir: holeShip ? v3.normalize([0.43, 0.29, -0.82]) : v3.normalize([0.45, 0.72, 0.52]),
-      ambient: holeShip ? 0.30 : lerp(0.40, 0.14, smoothstep(0.15, 0.45, p)),
+      lightDir: holeShip ? v3.normalize([-0.52, 0.26, -0.81]) : v3.normalize([0.45, 0.72, 0.52]),
+      ambient: holeShip ? 0.46 : lerp(0.40, 0.14, smoothstep(0.15, 0.45, p)),
       // At the hole the environment is the accretion disk, not Earth's sky.
       // Leaving the sky palette in place lit the ship cold blue while it sat
       // beside a furnace, which is the single most obvious way to make a
@@ -313,7 +313,9 @@ export function createDirector() {
       boosterRot: [0, 0, -pitch * (1 - sepP) - boosterFlip],
       shipPos: holeShip ? holeShipPos : shipPos,
       shipRot: holeShip ? holeShipRot : [0, 0, -pitch],
-      thrust: holeShip ? 0.22 : thrust,
+      // Engines off. It is in orbit, not burning, and a coasting ship trailing a
+      // faint plume just left a detached clump of particles in the frame.
+      thrust: holeShip ? 0 : thrust,
       thrustStage: p > 0.345 ? 2 : 1,
 
       // debug
