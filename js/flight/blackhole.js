@@ -225,26 +225,43 @@ void main() {
   float ring = exp(-pow((b - 2.598) * 9.0, 2.0));
   colour += vec3(1.0, 0.86, 0.62) * ring * 0.28 * (captured ? 1.0 : 0.55);
 
-  // Tone map and fade in.
   colour *= u_intensity;
-  colour = colour / (1.0 + colour * 0.72);
-  colour = pow(max(colour, 0.0), vec3(0.4545));
 
-  // Warp exit. The streaks blueshift into a bloom and the hole resolves out of
-  // it, so the two phases are one continuous event rather than a cut. Radial
-  // streaking keeps the sense of speed right up to the moment it stops.
+  // Arrival. The warp does not cut to the hole: the streaks keep flying while
+  // the hole fades up behind them and then decay as the ship slows, so the two
+  // phases are one continuous move.
+  //
+  // Added BEFORE the tone map on purpose. The first version added it after,
+  // where nothing could compress it, and at full strength it washed the entire
+  // frame to flat white for several hundred pixels of scroll. Here the same
+  // energy just rolls off.
   if (u_flare > 0.001) {
     float r = length(uv);
-    vec2 rad = uv / max(r, 1e-4);
-    float streak = 0.0;
-    for (int s = 1; s <= 5; s++) {
-      vec2 sp = uv - rad * float(s) * 0.055;
-      streak += exp(-length(sp) * 1.6) / float(s);
+    float ang = atan(uv.y, uv.x);
+    const float LANES = 220.0;
+    const float TAU = 6.28318530718;
+    float laneF = ang / TAU * LANES;
+    vec3 streaks = vec3(0.0);
+    for (int k = -1; k <= 1; k++) {
+      float lane = floor(laneF) + float(k);
+      float h = hash21(vec2(lane, 4.31));
+      float dLane = (lane + 0.5) - laneF;
+      float arc = abs(dLane) * (TAU / LANES) * max(r, 0.02);
+      float t = fract(h * 11.0 + u_time * (0.25 + h * 0.5) * (0.3 + u_flare * 1.8));
+      float head = t * t * 2.1;
+      float len = 0.04 + 0.7 * u_flare * (0.2 + t);
+      float behind = head - len;
+      float d = r > head ? (r - head) : (r < behind ? (behind - r) : 0.0);
+      streaks += mix(vec3(0.5, 0.7, 1.0), vec3(1.0, 0.95, 0.9), u_flare * 0.5)
+        * exp(-(d * d) / 0.0016) * exp(-(arc * arc) / 0.000009) * (0.3 + h);
     }
-    vec3 hot = mix(vec3(0.45, 0.72, 1.0), vec3(1.0, 0.94, 0.86), u_flare);
-    colour += hot * u_flare * (0.30 + streak * 0.34);
-    colour += vec3(0.60, 0.78, 1.0) * u_flare * u_flare * 0.55;
+    colour += streaks * u_flare * 1.05;
+    colour += vec3(0.28, 0.46, 1.0) * exp(-r * 3.2) * u_flare * u_flare * 0.7;
   }
+
+  // Tone map.
+  colour = colour / (1.0 + colour * 0.72);
+  colour = pow(max(colour, 0.0), vec3(0.4545));
 
   // Faint grain to break up banding in the large dark areas. Applied after
   // gamma, so it stays subtle instead of being lifted with everything else.

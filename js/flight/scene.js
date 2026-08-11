@@ -94,8 +94,8 @@ void main() {
   float fres = pow(1.0 - max(dot(n, v), 0.0), 5.0);
   float f = mix(0.04, 1.0, fres);
   vec3 refl = envSample(reflect(-v, n));
-  col = mix(col, refl, uMetal * clamp(f * 1.4 + 0.20, 0.0, 0.92));
-  col += vec3(1.0) * spec * mix(0.25, 1.1, uMetal);
+  col = mix(col, refl * 1.35, uMetal * clamp(f * 1.5 + 0.42, 0.0, 0.95));
+  col += mix(uSkyHigh * 3.0, vec3(0.95, 0.97, 1.0), 0.55) * spec * mix(0.20, 0.45, uMetal);
 
   // The plume is a real light source. Without this the engines fire and the
   // hull above them stays evenly lit, which reads as fake immediately.
@@ -108,7 +108,7 @@ void main() {
   }
 
   col += base * uEmissive;
-  col += envSample(reflect(-v, n)) * pow(1.0 - max(dot(n, v), 0.0), 3.0) * uRim * 0.6;
+  col += mix(uSkyLow, uSkyHigh, 0.6) * pow(1.0 - max(dot(n, v), 0.0), 2.2) * uRim * 2.4;
 
   // Aerial perspective. Distant geometry has air in front of it and must sink
   // toward the sky colour, otherwise near and far read at the same contrast
@@ -177,12 +177,52 @@ void main() {
   }
   sky += stars * starMix;
 
-  // Warp adds a forward-rushing tunnel glow and desaturates the edges.
+  // Warp.
+  //
+  // The previous version tinted the screen blue and called it done. Nothing
+  // moved, so at warp 0.96 the frame was indistinguishable from the frame
+  // before it. This is an actual tunnel: streaks live in angular lanes and
+  // fly outward from the centre with time, accelerating as they go, so the
+  // motion exists whether or not you are scrolling.
   if (uWarp > 0.001) {
     float r = length(ndc);
-    float tunnel = exp(-r*2.4) * uWarp;
-    sky += vec3(0.35,0.55,1.0) * tunnel * 0.5;
-    sky *= mix(1.0, 1.0 + r*1.8, uWarp*0.6);
+    float ang = atan(ndc.y, ndc.x);
+    const float LANES = 260.0;
+    const float TAU = 6.28318530718;
+    float laneF = ang / TAU * LANES;
+
+    vec3 streaks = vec3(0.0);
+    for (int k = -1; k <= 1; k++) {
+      float lane = floor(laneF) + float(k);
+      float h  = hash21(vec2(lane, 7.13));
+      float h2 = hash21(vec2(lane, 19.77));
+
+      // Arc distance from this pixel to the lane's centre line.
+      float dLane = (lane + 0.5 + (h2 - 0.5) * 0.7) - laneF;
+      float arc = abs(dLane) * (TAU / LANES) * max(r, 0.02);
+
+      // Travel outward and loop. Squaring the parameter makes them crawl near
+      // the centre and tear past at the edge, which is what sells the speed.
+      float speed = 0.30 + h * 0.55;
+      float t = fract(h * 13.0 + uTime * speed * (0.25 + uWarp * 2.1));
+      float head = t * t * 2.0;
+      float len = 0.03 + 0.60 * uWarp * (0.25 + t);
+
+      // Inside the segment the falloff is flat; outside it decays.
+      float behind = head - len;
+      float d = r > head ? (r - head) : (r < behind ? (behind - r) : 0.0);
+      float body = exp(-(d * d) / 0.0012);
+      float thin = exp(-(arc * arc) / 0.0000085);
+
+      vec3 tint = mix(vec3(0.45, 0.66, 1.0), vec3(1.0, 0.97, 0.92), uWarp * 0.55 * t);
+      streaks += tint * body * thin * (0.35 + h * 0.95);
+    }
+    sky += streaks * uWarp * 1.7;
+
+    // Core rushing at the viewer, and a faint radial smear of everything else
+    // so the background is dragged along too.
+    sky += vec3(0.24, 0.44, 1.0) * exp(-r * 3.6) * uWarp * 0.42;
+    sky *= mix(1.0, 1.0 + r * 0.55, uWarp * 0.5);
   }
 
   sky += (hash21(gl_FragCoord.xy + fract(uTime))-0.5)*0.012;
@@ -302,22 +342,46 @@ export function createScene(canvas, { tier = 'high' } = {}) {
   }
   resize();
 
-  /** Spawns plume particles at the engine plane. */
-  function emit(count, origin, spread, speed, dt) {
+  /**
+   * Spawns plume particles at the engine plane, firing along the vehicle's
+   * own axis.
+   *
+   * The exhaust used to leave along world -Y regardless of attitude, so a
+   * rocket 40 degrees into its gravity turn trailed a flame that pointed
+   * straight at the ground. The plume is built in the basis around the
+   * exhaust direction instead: the disc it spawns on is perpendicular to the
+   * nozzle, not to the horizon.
+   */
+  function emit(count, origin, spread, speed, dir) {
+    const dl = Math.hypot(dir[0], dir[1], dir[2]) || 1;
+    const dx = dir[0] / dl, dy = dir[1] / dl, dz = dir[2] / dl;
+    // Any vector not parallel to the axis gives a stable perpendicular basis.
+    const tx = Math.abs(dy) < 0.9 ? 0 : 1;
+    const ty = Math.abs(dy) < 0.9 ? 1 : 0;
+    let ux = ty * dz - 0 * dy;
+    let uy = 0 * dx - tx * dz;
+    let uz = tx * dy - ty * dx;
+    const ul = Math.hypot(ux, uy, uz) || 1;
+    ux /= ul; uy /= ul; uz /= ul;
+    const wx = dy * uz - dz * uy;
+    const wy = dz * ux - dx * uz;
+    const wz = dx * uy - dy * ux;
+
     for (let i = 0; i < count; i += 1) {
       const p = particles[cursor];
       cursor = (cursor + 1) % maxParticles;
       const a = Math.random() * Math.PI * 2;
       const r = Math.sqrt(Math.random()) * spread;
-      p.x = origin[0] + Math.cos(a) * r;
-      p.y = origin[1];
-      p.z = origin[2] + Math.sin(a) * r;
-      p.vx = Math.cos(a) * r * 0.9;
-      p.vy = -speed * (0.6 + Math.random() * 0.7);
-      p.vz = Math.sin(a) * r * 0.9;
+      const ox = Math.cos(a) * r, oy = Math.sin(a) * r;
+      p.x = origin[0] + ux * ox + wx * oy;
+      p.y = origin[1] + uy * ox + wy * oy;
+      p.z = origin[2] + uz * ox + wz * oy;
+      const v = speed * (0.6 + Math.random() * 0.7);
+      p.vx = dx * v + (ux * ox + wx * oy) * 0.9;
+      p.vy = dy * v + (uy * ox + wy * oy) * 0.9;
+      p.vz = dz * v + (uz * ox + wz * oy) * 0.9;
       p.life = 1;
     }
-    void dt;
   }
 
   function stepParticles(dt) {
@@ -483,7 +547,7 @@ export function createScene(canvas, { tier = 'high' } = {}) {
       if (f.showVehicle) {
         // Bare stainless steel. High metal weight so it takes its colour from
         // the sky rather than from a baked albedo.
-        const STEEL = [0.62, 0.65, 0.70];
+        const STEEL = [0.30, 0.325, 0.365];
         if (f.boosterVisible) {
           drawMesh(meshes.booster, m4.compose(f.boosterPos, f.boosterRot, [1, 1, 1]),
             STEEL, { rim: 0.5, metal: 0.86 });
@@ -499,7 +563,7 @@ export function createScene(canvas, { tier = 'high' } = {}) {
       // with which stage is actually burning.
       const booster = f.thrustStage === 1;
       const rate = Math.min(72, Math.round(f.thrust * (booster ? 46 : 16) * Math.min(dt, 0.05) * 60));
-      emit(rate, f.enginePos, booster ? 4.2 : 2.4, booster ? 62 : 34, dt);
+      emit(rate, f.enginePos, booster ? 4.2 : 2.4, booster ? 62 : 34, f.exhaustDir || [0, -1, 0]);
     }
     const live = stepParticles(Math.min(dt, 0.05));
     if (live > 0 && f.showVehicle) {

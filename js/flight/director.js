@@ -20,8 +20,8 @@ export const PHASES = [
   { id: 'ascent', label: 'ASCENT', from: 0.150, to: 0.330 },
   { id: 'staging', label: 'MECO / SEP', from: 0.330, to: 0.430 },
   { id: 'orbit', label: 'ORBIT', from: 0.430, to: 0.565 },
-  { id: 'warp', label: 'WARP', from: 0.565, to: 0.720 },
-  { id: 'hole', label: 'GARGANTUA', from: 0.720, to: 1.001 },
+  { id: 'warp', label: 'WARP', from: 0.565, to: 0.655 },
+  { id: 'hole', label: 'GARGANTUA', from: 0.655, to: 1.001 },
 ];
 
 const EARTH_R_WORLD = 3200;
@@ -94,11 +94,16 @@ export function createDirector() {
     const boosterFlip = sepP * Math.PI * 0.86;
 
     // --- warp and hole ----------------------------------------------------
-    // The two overlap deliberately. Warp winds up, blueshifts, flares, and the
-    // hole resolves out of the flare rather than replacing it between frames.
-    const warp = smoothstep(0.570, 0.650, p) * (1 - smoothstep(0.700, 0.760, p));
-    const flare = smoothstep(0.678, 0.716, p) * (1 - smoothstep(0.716, 0.762, p));
-    const hole = smoothstep(0.700, 0.792, p);
+    // One continuous move, not three states.
+    //
+    // The sky-based warp winds up and hands over to the hole pass, which keeps
+    // drawing the same streaks while the hole itself fades up behind them. The
+    // streaks then decay as the ship decelerates into orbit. Previously these
+    // windows barely overlapped, so the sequence was: blue screen, white
+    // screen, black hole, with no motion connecting them.
+    const warp = smoothstep(0.570, 0.638, p) * (1 - smoothstep(0.640, 0.700, p));
+    const hole = smoothstep(0.648, 0.726, p);
+    const flare = smoothstep(0.600, 0.648, p) * (1 - smoothstep(0.652, 0.728, p));
 
     // Approach: the camera falls toward the hole through the last section,
     // ending in a stable orbit well outside the photon sphere.
@@ -107,9 +112,9 @@ export function createDirector() {
     // than the frame and gets cut off at the screen edges, which is the
     // "clipped" look: you stop reading a black hole and start reading a
     // brown band across the middle of the page.
-    const approach = smoothstep(0.720, 1.0, p);
-    const holeDist = lerp(82, 28, approach);
-    const holeAngle = approach * 1.9;
+    const approach = smoothstep(0.655, 1.0, p);
+    const holeDist = lerp(82, 28, Math.pow(approach, 0.45));
+    const holeAngle = Math.pow(approach, 0.7) * 1.9;
     const holeCam = [
       Math.sin(holeAngle) * holeDist,
       lerp(1.6, 4.2, smoothstep(0.80, 1.0, p)),
@@ -146,6 +151,7 @@ export function createDirector() {
       if (t < mecoT) return 1;
       if (p < 0.360) return clamp(1 - smoothstep(mecoT - 2, mecoT + 2, t), 0, 1);
       if (p < 0.565) return 0.72;                          // ship
+      if (p < 0.660) return 0.85;                          // warp burn
       return 0;
     })();
 
@@ -156,31 +162,53 @@ export function createDirector() {
     const pitch = tel.pitch || 0;
     const boosterVisible = p < 0.500;
 
-    // Stacked before separation, then the booster falls and flips while the
-    // ship carries on. The ship's origin is its engine plane, so its world
-    // height is the top of the hot-stage ring while mated.
+    // The vehicle's own up-axis once pitched. rotZ(-pitch) applied to (0,1,0).
+    //
+    // Everything mounted on the stack has to be placed along THIS, not along
+    // world up. Placing the ship at a fixed world height while the booster
+    // tilted underneath it is what tore the stack in half during the gravity
+    // turn: by 40 degrees of pitch the ship was floating clear of the booster
+    // with a visible gap between them.
+    const axis = [Math.sin(pitch), Math.cos(pitch), 0];
+    const along = (base, d) => [base[0] + axis[0] * d, base[1] + axis[1] * d, base[2] + axis[2] * d];
+
     const SHIP_BASE = 73.6;
-    const shipPos = [0, SHIP_BASE + shipDrop + (p > 0.345 ? sepP * 20 : 0), 0];
     const boosterPos = [0, boosterY, boosterZ];
+    // Mated: the ship rides the booster's axis, so the stack stays one object
+    // through the gravity turn.
+    //
+    // Separated: it holds station and the world moves around it, as everything
+    // else here does. Continuing to offset it along the pitched axis put it 98
+    // units downrange once the pitch went near horizontal, which walked the
+    // subject off the bottom of the frame during the entire warp section.
+    const shipPos = p > 0.345
+      ? [0, SHIP_BASE + sepP * 26, 0]
+      : along(boosterPos, SHIP_BASE + shipDrop);
+
+    // Exhaust leaves along the vehicle's axis, not straight down. A tilted
+    // rocket with a vertical flame is the most obvious tell there is.
+    const exhaustDir = [-axis[0], -axis[1], -axis[2]];
 
     const sky = skyColours(altNorm, Math.max(warp, flare * 0.6));
 
     // Earth grows in across a long window instead of switching on between two
     // frames, which is what made it appear out of nowhere.
-    const earthIn = smoothstep(0.180, 0.340, p) * (1 - smoothstep(0.640, 0.706, p));
+    const earthIn = smoothstep(0.180, 0.340, p) * (1 - smoothstep(0.545, 0.624, p));
 
     // Where the burning engines are: used both to emit the plume and to light
     // the hull from below.
+    // Also on the axis: the engine plane sits below the base along the body,
+    // which is not the same as below it in world space once pitched.
     const enginePos = p > 0.345
-      ? [shipPos[0], shipPos[1] - 2.6, shipPos[2]]
-      : [boosterPos[0], boosterPos[1] - 2.6, boosterPos[2]];
+      ? along(shipPos, -2.6)
+      : along(boosterPos, -2.6);
 
     // --- the ship at the black hole ---------------------------------------
     // The finale used to be a bare shader: the ship simply vanished and
     // Gargantua appeared. Keeping the ship in frame, silhouetted against the
     // disk and settling into orbit, is the difference between a picture of a
     // black hole and being at one.
-    const holeShip = p > 0.706;
+    const holeShip = p > 0.652;
     let holeSceneCam = camPos;
     let holeSceneTarget = camTarget;
     let holeShipPos = shipPos;
@@ -190,15 +218,18 @@ export function createDirector() {
       // the two layers are composed by draw order rather than sharing a frame.
       holeSceneCam = [0, 26, 300];
       holeSceneTarget = [0, 18, 0];
-      const arrive = smoothstep(0.706, 0.985, p);
+      const arrive = smoothstep(0.652, 0.960, p);
       // Flies in from the right, decelerates, and settles broadside on as it
       // enters orbit.
       holeShipPos = [
-        lerp(430, 62, arrive),
-        lerp(120, -18, arrive),
-        lerp(-300, 168, arrive),
+        lerp(470, -104, arrive),
+        lerp(150, -18, arrive),
+        lerp(-340, 150, arrive),
       ];
-      holeShipRot = [0, lerp(0.35, 1.28, arrive), lerp(-1.10, -1.60, arrive)];
+      // Nose toward the hole and broadside to the camera, so the silhouette
+      // reads as a ship: nosecone, flaps, engine cluster. Rotated further
+      // round it becomes an anonymous cylinder seen end on.
+      holeShipRot = [0, lerp(0.28, 0.58, arrive), lerp(-1.02, -1.30, arrive)];
     }
 
     return {
@@ -231,10 +262,14 @@ export function createDirector() {
       hole,
 
       // lighting, matched to the sky so reflections and fog agree with it
-      lightDir: v3.normalize([0.45, 0.72, 0.52]),
-      ambient: lerp(0.40, 0.14, smoothstep(0.15, 0.45, p)),
-      skyLow: sky.low,
-      skyHigh: sky.high,
+      lightDir: holeShip ? v3.normalize([0.43, 0.29, -0.82]) : v3.normalize([0.45, 0.72, 0.52]),
+      ambient: holeShip ? 0.30 : lerp(0.40, 0.14, smoothstep(0.15, 0.45, p)),
+      // At the hole the environment is the accretion disk, not Earth's sky.
+      // Leaving the sky palette in place lit the ship cold blue while it sat
+      // beside a furnace, which is the single most obvious way to make a
+      // metal object look composited in rather than present.
+      skyLow: holeShip ? [0.40, 0.235, 0.115] : sky.low,
+      skyHigh: holeShip ? [0.020, 0.021, 0.036] : sky.high,
       // Air only exists low down; above about 60 km there is nothing to fog with.
       fog: lerp(0.55, 0.0, smoothstep(0.02, 0.34, altNorm)),
       fogDist: lerp(900, 4200, altNorm),
@@ -243,6 +278,21 @@ export function createDirector() {
       // left a flame burning in empty space on the far side of the frame.
       enginePos: holeShip ? holeShipPos : enginePos,
       engineLight: holeShip ? 0.25 : 1,
+      // Derived from the ship's actual attitude rather than hardcoded. A fixed
+      // vector pointed the plume at the camera while the ship faced elsewhere,
+      // so the exhaust drifted away and sat as a separate blob in the frame.
+      //   axis = rotY(ry) * rotZ(rz) * (0,1,0)
+      exhaustDir: holeShip
+        ? (() => {
+          const ry = holeShipRot[1];
+          const rz = holeShipRot[2];
+          return [
+            Math.cos(ry) * Math.sin(rz),
+            -Math.cos(rz),
+            -Math.sin(ry) * Math.sin(rz),
+          ];
+        })()
+        : exhaustDir,
 
       // world
       // The pad recedes with the vehicle and is gone well before orbit. It
@@ -257,7 +307,7 @@ export function createDirector() {
       earthRadius: EARTH_R_WORLD * lerp(0.55, 1, earthIn),
 
       // vehicle
-      showVehicle: p < 0.706 || holeShip,
+      showVehicle: true,
       boosterVisible: boosterVisible && !holeShip,
       boosterPos,
       boosterRot: [0, 0, -pitch * (1 - sepP) - boosterFlip],
