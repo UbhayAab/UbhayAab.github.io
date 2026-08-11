@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Signal lost - Ubhay</title>
+<meta name="robots" content="noindex">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#06070b">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%2306070b'/><path d='M28 28v26c0 10 7 17 16 17h1c9 0 16-7 16-17V28' fill='none' stroke='%23ff7a18' stroke-width='9' stroke-linecap='round'/></svg>">
+<link rel="stylesheet" href="./css/core.css">
+<style>
+  /* This page carries its own layout. It is one screen, it must render with
+     no JavaScript at all, and it is the page most likely to be reached by a
+     crawler or a broken link, so nothing here is deferred. */
+  body { display: grid; place-items: center; min-height: 100svh; overflow: hidden; }
+  .lost { max-width: 620px; padding: 0 var(--gutter); position: relative; z-index: 2; }
+  .lost h1 {
+    font-size: clamp(38px, 9vw, 92px);
+    line-height: 0.96;
+    letter-spacing: -0.045em;
+    margin: 0 0 18px;
+    font-weight: 650;
+  }
+  .lost p { color: var(--dim); max-width: 48ch; }
+  .code { font: 500 11px var(--mono); letter-spacing: 0.28em; color: var(--accent); margin: 0 0 22px; }
+  .drift {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    background:
+      radial-gradient(1px 1px at 20% 30%, rgba(255,255,255,.7), transparent),
+      radial-gradient(1px 1px at 70% 20%, rgba(255,255,255,.5), transparent),
+      radial-gradient(1.5px 1.5px at 40% 70%, rgba(255,255,255,.6), transparent),
+      radial-gradient(1px 1px at 85% 62%, rgba(255,255,255,.5), transparent),
+      radial-gradient(1px 1px at 12% 84%, rgba(255,255,255,.45), transparent),
+      radial-gradient(70% 60% at 78% 18%, rgba(77,124,254,.10), transparent 70%);
+  }
+  /* The rocket adrift: a slow tumble, no thrust. Purely CSS so it works with
+     scripting off, and it stops entirely if the visitor asked for less motion. */
+  .adrift {
+    position: fixed;
+    right: 8vw;
+    top: 50%;
+    z-index: 1;
+    width: 84px;
+    opacity: 0.9;
+    animation: tumble calc(24s / var(--mo)) linear infinite, bob calc(7s / var(--mo)) ease-in-out infinite;
+  }
+  @keyframes tumble { to { transform: rotate(360deg); } }
+  @keyframes bob { 50% { margin-top: -26px; } }
+  @media (max-width: 780px) { .adrift { opacity: 0.25; right: -4vw; } }
+</style>
+</head>
+<body>
+
+<div class="drift" aria-hidden="true"></div>
+
+<svg class="adrift" viewBox="0 0 60 200" aria-hidden="true" fill="none">
+  <path d="M30 4 C42 30 46 64 46 96 V150 H14 V96 C14 64 18 30 30 4Z" fill="#2a3140" stroke="#4a5468" stroke-width="1.5"/>
+  <path d="M14 118 L2 168 H14Z" fill="#333b4d"/>
+  <path d="M46 118 L58 168 H46Z" fill="#333b4d"/>
+  <rect x="20" y="150" width="20" height="16" rx="3" fill="#1b2130" stroke="#4a5468" stroke-width="1.2"/>
+  <circle cx="30" cy="70" r="7" fill="#0b0d13" stroke="#5b657a" stroke-width="1"/>
+</svg>
+
+<main class="lost">
+  <p class="code">// SIGNAL LOST</p>
+  <h1>That page is not on this trajectory.</h1>
+  <p>Nothing at this address. The likely causes are a stale link or a typo, and
+  neither is your problem to fix. Everything on this site is reachable from the
+  front page: the work, the thesis, the arcade and the numbers behind all three.</p>
+  <div class="row" style="gap:10px;margin-top:28px;flex-wrap:wrap;justify-content:flex-start">
+    <a class="btn cta" href="/">fire the thrusters, go home</a>
+    <a class="btn" href="/#arcade">arcade</a>
+    <a class="btn" href="/#/consult">work with me</a>
+  </div>
+  <p class="mono" style="font-size:11px;color:var(--faint);margin-top:32px">
+    404 &middot; ubhayaab.github.io</p>
+</main>
+
+</body>
+</html>

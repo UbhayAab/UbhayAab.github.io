@@ -1,0 +1,16 @@
+﻿import { chromium } from 'playwright';
+const b = await chromium.launch();
+const p = await b.newPage({ viewport: { width: 1400, height: 900 } });
+const errs = [];
+p.on('pageerror', e => errs.push('PAGEERROR ' + e.message + ' | ' + String(e.stack).split('\n')[1]));
+p.on('console', m => { if (m.type()==='error') errs.push(m.text()); });
+await p.goto('http://127.0.0.1:4199/#/vision/nuclear', { waitUntil: 'load' });
+await p.waitForTimeout(3000);
+console.log('errors:', errs.length ? errs.join('\n') : 'none');
+console.log('VISION len:', await p.evaluate(() => (window.VISION||[]).length));
+console.log('#dossier exists:', await p.locator('#dossier').count());
+console.log('#dossier hidden:', await p.locator('#dossier').evaluate(n => n.hidden).catch(e=>'n/a'));
+console.log('#dossier html len:', await p.locator('#dossier').evaluate(n => n.innerHTML.length).catch(e=>'n/a'));
+console.log('#consult hidden:', await p.locator('#consult').evaluate(n => n.hidden).catch(e=>'n/a'));
+console.log('hash:', await p.evaluate(() => location.hash));
+await b.close();

@@ -6,6 +6,8 @@
 import { mountFlight } from './flight/index.js';
 import { mountTerminal } from './terminal.js';
 import { mountArcade } from './arcade.js';
+import { mountDossier } from './dossier.js';
+import { mountConsult } from './consult.js';
 import { audio } from './audio.js';
 
 const S = (window.SITE || {});
@@ -46,10 +48,38 @@ function applyMotion() {
   localStorage.setItem('motion', motion);
 }
 
+/* --------------------------------------------------------- theme and warp */
+// Theme is a class on <html>, persisted. The dark palette is the default and
+// the one everything else on the page was designed against; light is a real
+// second palette rather than a filter, so it gets its own token block in CSS.
+function applyTheme(next) {
+  document.documentElement.classList.toggle('light', next === 'light');
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', next === 'light' ? '#eef0f6' : '#06070b');
+  const btn = document.getElementById('theme');
+  if (btn) {
+    btn.innerHTML = next === 'light' ? '&#9789;' : '&#9788;';
+    btn.setAttribute('aria-label', next === 'light' ? 'Switch to dark theme' : 'Switch to light theme');
+  }
+  localStorage.setItem('theme', next);
+}
+
+// One warp wipe, replayed by removing and re-adding the class. Restarting a
+// CSS animation needs a reflow between the two, which is what the offsetWidth
+// read is doing; without it a second call inside the same frame does nothing.
+function warp() {
+  if (motion === 'off') return;
+  const w = document.getElementById('warp');
+  if (!w) return;
+  w.classList.remove('go');
+  void w.offsetWidth;
+  w.classList.add('go');
+}
+
 /* ---------------------------------------------------------------- the loop */
 let flight = null;
 let visible = true;
 let gameOpen = false;
+let dossier = null;
 let scrollP = 0;
 const frames = [];
 let tier = localStorage.getItem('tier') || 'high';
@@ -259,14 +289,19 @@ function fillVentures() {
 function fillVision() {
   const grid = $('#vision-grid');
   if (!grid || !P) return;
+  // Slugs come from the deep-dive data so a card and its dossier cannot drift.
+  const deep = window.VISION || [];
   P.vision.forEach((v, i) => {
+    const d = deep[i];
     const c = el('article', 'card rise');
     c.style.setProperty('--d', `${100 + i * 55}ms`);
     c.innerHTML = `
       <span class="spine" style="background:${v.color}"></span>
       <div class="row" style="margin-bottom:12px"><span class="mono">${v.subtitle}</span></div>
       <h3>${v.title}</h3>
-      <p style="margin-bottom:0">${v.desc}</p>`;
+      <p>${v.desc}</p>
+      ${d ? `<div class="row"><button class="btn" data-vision="${d.slug}">read the thesis</button>
+        ${d.sim ? `<span class="mono" style="font-size:10.5px">includes ${d.sim.id}</span>` : ''}</div>` : ''}`;
     grid.appendChild(c);
   });
 
@@ -384,8 +419,28 @@ function main() {
   const career = mountCareer();
   mountTerminal({ stats, bench, projects: S.projects });
   mountArcade({ stats, bench, subscribe: (fn) => { subs.add(fn); return () => subs.delete(fn); }, audio });
+  // Reading a dossier pauses the flight for the same reason a game does.
+  dossier = mountDossier({
+    audio,
+    subscribe: (fn) => { subs.add(fn); return () => subs.delete(fn); },
+    onOpen: () => { gameOpen = true; warp(); },
+    onClose: () => { gameOpen = false; },
+  });
+  mountConsult({
+    audio,
+    warp,
+    onOpen: () => { gameOpen = true; },
+    onClose: () => { gameOpen = false; },
+  });
 
   const stamp = $('#stamp');
+  const hint = stamp?.parentElement;
+  if (hint && !hint.querySelector('.code-hint')) {
+    const s = el('span', 'code-hint mono');
+    s.style.cssText = 'color:var(--faint);font-size:10.5px';
+    s.textContent = 'try typing secret codes';
+    hint.appendChild(s);
+  }
   if (stamp && stats.generatedAt) {
     stamp.textContent = `data generated ${new Date(stats.generatedAt).toISOString().slice(0, 16).replace('T', ' ')} UTC`;
   }
@@ -399,17 +454,36 @@ function main() {
   }, { rootMargin: '0px 0px -8% 0px', threshold: 0.05 });
   $$('.rise').forEach((n) => io.observe(n));
 
-  // Nav dots follow the section in view.
+  // Nav dots and the top nav both follow the section in view.
   const sections = $$('section[id]');
   const dots = new Map($$('.dots a').map((a) => [a.getAttribute('href').slice(1), a]));
+  const topLinks = new Map($$('#topnav [data-nav]').map((a) => [a.dataset.nav, a]));
   const navIO = new IntersectionObserver((entries) => {
     for (const e of entries) {
       if (!e.isIntersecting) continue;
       dots.forEach((a) => a.removeAttribute('aria-current'));
       dots.get(e.target.id)?.setAttribute('aria-current', 'true');
+      topLinks.forEach((a) => a.removeAttribute('aria-current'));
+      topLinks.get(e.target.id)?.setAttribute('aria-current', 'true');
     }
   }, { threshold: 0.4 });
   sections.forEach((s) => navIO.observe(s));
+
+  // Top nav: hide going down, show coming back up. The threshold is 6px so a
+  // trackpad's inertia jitter cannot flap it.
+  const topnav = $('#topnav');
+  let lastY = scrollY;
+  const navScroll = () => {
+    const y = scrollY;
+    if (topnav) {
+      topnav.classList.toggle('stuck', y > 24);
+      if (Math.abs(y - lastY) > 6) {
+        topnav.classList.toggle('up', y > lastY && y > 220);
+        lastY = y;
+      }
+    }
+  };
+  addEventListener('scroll', navScroll, { passive: true });
 
   // The flight. Scroll position is the mission clock.
   const canvas = $('#gl');
@@ -466,11 +540,147 @@ function main() {
   });
   applyMotion();
 
+  $('#theme')?.addEventListener('click', () => {
+    applyTheme(document.documentElement.classList.contains('light') ? 'dark' : 'light');
+    audio.blip();
+  });
+
+  /* ------------------------------------------------------- magnetic cursor */
+  // Only on a device with a real pointer, and only at full motion. A custom
+  // cursor that lags behind the real one is worse than not having one, and on
+  // touch there is nothing to attach it to.
+  if (matchMedia('(hover: hover) and (pointer: fine)').matches) {
+    const cur = el('div');
+    cur.id = 'cursor';
+    document.body.appendChild(cur);
+    // Label by what the thing does, not by what it is.
+    const labelFor = (n) => {
+      if (n.matches('[data-play]')) return 'PLAY';
+      if (n.matches('[data-vision]')) return 'READ';
+      if (n.matches('a[href^="#/"], .cta')) return 'OPEN';
+      if (n.matches('a[href^="http"]')) return 'VISIT';
+      if (n.matches('button, .btn, a')) return 'SELECT';
+      return '';
+    };
+    let tx = innerWidth / 2, ty = innerHeight / 2, cx = tx, cy = ty, snapped = null;
+    addEventListener('pointermove', (e) => {
+      if (e.pointerType !== 'mouse') return;
+      tx = e.clientX; ty = e.clientY;
+      cur.classList.add('on');
+      const hit = e.target.closest('button, .btn, a, [data-play], [data-vision]');
+      if (hit !== snapped) {
+        snapped = hit;
+        const label = hit ? labelFor(hit) : '';
+        cur.classList.toggle('snap', Boolean(label));
+        if (label) cur.dataset.label = label;
+      }
+    }, { passive: true });
+    addEventListener('pointerdown', () => cur.style.setProperty('transform', 'scale(.82)'));
+    addEventListener('pointerup', () => cur.style.removeProperty('transform'));
+    addEventListener('mouseout', (e) => { if (!e.relatedTarget) cur.classList.remove('on'); });
+    // Followed with damping on the shared ticker, which is what makes it read
+    // as magnetic: it eases toward the centre of whatever it has snapped to.
+    subs.add(() => {
+      if (snapped) {
+        const r = snapped.getBoundingClientRect();
+        // Pull a third of the way toward the element centre, so the cursor
+        // still tracks the hand but visibly wants the target.
+        tx += (r.left + r.width / 2 - tx) * 0.34;
+        ty += (r.top + r.height / 2 - ty) * 0.34;
+      }
+      cx += (tx - cx) * 0.28;
+      cy += (ty - cy) * 0.28;
+      cur.style.left = `${cx.toFixed(1)}px`;
+      cur.style.top = `${cy.toFixed(1)}px`;
+    });
+  }
+
   if (new URLSearchParams(location.search).has('debug')) {
     hud = el('div');
     hud.id = 'hud';
     document.body.appendChild(hud);
   }
+
+  // Vision cards open their dossier.
+  $('#vision-grid')?.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-vision]');
+    if (b) dossier?.open(b.dataset.vision);
+  });
+
+  /* ------------------------------------------------------------ secret codes */
+  // From the design brief: UBHAY rains, POWER bursts, NEXUS launches something.
+  const fx = el('canvas');
+  fx.id = 'fx';
+  fx.hidden = true;
+  document.body.appendChild(fx);
+  const fxc = fx.getContext('2d');
+  let fxKind = null;
+  let fxUntil = 0;
+  let drops = [];
+  let bits = [];
+
+  const startFx = (kind, ms) => {
+    fx.width = innerWidth; fx.height = innerHeight;
+    fx.hidden = false;
+    fxKind = kind;
+    fxUntil = performance.now() + ms;
+    if (kind === 'matrix') {
+      drops = Array.from({ length: Math.floor(innerWidth / 15) }, () => Math.random() * -innerHeight);
+    } else {
+      bits = Array.from({ length: 220 }, () => ({
+        x: innerWidth / 2, y: innerHeight * 0.62,
+        vx: (Math.random() - 0.5) * 17, vy: -Math.random() * 15 - 4,
+        c: ['#ff7a18', '#4d7cfe', '#38d9a9', '#ec4899', '#f5c542'][Math.floor(Math.random() * 5)],
+        r: 2 + Math.random() * 4,
+      }));
+    }
+    audio.chime();
+  };
+
+  subs.add((dt, now) => {
+    if (!fxKind) return;
+    if (now > fxUntil && fxKind !== 'matrix') { fxKind = null; fx.hidden = true; return; }
+    if (now > fxUntil) { fxKind = null; fx.hidden = true; return; }
+    const s = dt / 16.67;
+    if (fxKind === 'matrix') {
+      fxc.fillStyle = 'rgba(6,7,11,0.14)';
+      fxc.fillRect(0, 0, fx.width, fx.height);
+      fxc.font = '15px ui-monospace, monospace';
+      drops.forEach((y, i) => {
+        fxc.fillStyle = Math.random() < 0.08 ? '#d9ffe9' : '#38d9a9';
+        fxc.fillText(String.fromCharCode(0x30a0 + Math.floor(Math.random() * 96)), i * 15, y);
+        drops[i] = y > fx.height + Math.random() * 400 ? 0 : y + 17 * s;
+      });
+    } else {
+      fxc.clearRect(0, 0, fx.width, fx.height);
+      bits.forEach((b) => {
+        b.x += b.vx * s; b.y += b.vy * s; b.vy += 0.42 * s; b.vx *= 0.995;
+        fxc.fillStyle = b.c;
+        fxc.globalAlpha = Math.max(0, (fxUntil - now) / 2600);
+        fxc.beginPath(); fxc.arc(b.x, b.y, b.r, 0, 7); fxc.fill();
+      });
+      fxc.globalAlpha = 1;
+    }
+  });
+
+  const CODES = {
+    UBHAY: () => startFx('matrix', 6500),
+    POWER: () => startFx('confetti', 2600),
+    NEXUS: () => {
+      const cards = $$('#arcade-grid [data-play]');
+      if (!cards.length) return;
+      $('#arcade')?.scrollIntoView({ behavior: 'smooth' });
+      setTimeout(() => cards[Math.floor(Math.random() * cards.length)].click(), 700);
+    },
+  };
+  let typed = '';
+  addEventListener('keydown', (e) => {
+    if (e.key.length !== 1 || /^(INPUT|TEXTAREA)$/.test(document.activeElement?.tagName || '')) return;
+    typed = (typed + e.key.toUpperCase()).slice(-6);
+    for (const code of Object.keys(CODES)) {
+      if (typed.endsWith(code)) { typed = ''; CODES[code](); break; }
+    }
+  });
 
   // Konami. Flips the whole page into its loud alternate palette.
   const SEQ = ['ArrowUp', 'ArrowUp', 'ArrowDown', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ArrowLeft', 'ArrowRight', 'b', 'a'];
@@ -496,7 +706,46 @@ function safeMain() {
     document.documentElement.classList.remove('js');
     console.error('boot failed, falling back to the static document', err);
   }
+  dismissBoot();
 }
 
+/* ------------------------------------------------------------- boot screen */
+// The pre-loader the brief asks for, with one rule: it must never be able to
+// trap the page behind it. It is removed when boot finishes, when the window
+// load event fires, and unconditionally after 2.6 seconds, whichever is first.
+// Any one of those three failing still clears it.
+let bootGone = false;
+function dismissBoot() {
+  if (bootGone) return;
+  bootGone = true;
+  const b = document.getElementById('boot');
+  if (!b) return;
+  const bar = b.querySelector('.boot-bar i');
+  if (bar) bar.style.width = '100%';
+  const log = document.getElementById('boot-log');
+  if (log) log.textContent = 'all systems nominal';
+  setTimeout(() => {
+    b.classList.add('gone');
+    setTimeout(() => b.remove(), 460);
+  }, 160);
+}
+
+// Fill the bar against real milestones rather than a fake timer, so the
+// progress means something: stylesheet parsed, module evaluated, WebGL probed.
+(() => {
+  const bar = document.querySelector('#boot .boot-bar i');
+  const log = document.getElementById('boot-log');
+  const step = (pct, text) => {
+    if (bar) bar.style.width = `${pct}%`;
+    if (log) log.textContent = text;
+  };
+  step(28, 'module loaded');
+  const probe = document.createElement('canvas').getContext('webgl2');
+  step(62, probe ? 'WebGL2 available' : 'WebGL2 unavailable, using the poster');
+  addEventListener('load', dismissBoot, { once: true });
+  setTimeout(dismissBoot, 2600);
+})();
+
+applyTheme(localStorage.getItem('theme') || 'dark');
 if (document.readyState === 'loading') addEventListener('DOMContentLoaded', safeMain);
 else safeMain();

@@ -9,11 +9,12 @@ p.on('console', m => { if (m.type()==='error' && !/favicon|GL Driver|WebGL/i.tes
 await p.goto('https://ubhayaab.github.io/', { waitUntil: 'domcontentloaded' });
 await p.waitForTimeout(3500);
 const H = await p.evaluate(() => document.body.scrollHeight - innerHeight);
-for (const f of [0.00, 0.22, 0.40, 0.62, 0.70, 0.95]) {
-  await p.evaluate(y => window.scrollTo(0, y), Math.round(H * f));
-  await p.waitForTimeout(2600);
-  await p.screenshot({ path: `shots/live/f${String(Math.round(f*100)).padStart(3,'0')}.png` });
-  process.stdout.write(`${f} `);
+console.log('page height', H, '| sections', await p.locator('section[id]').count(), '| career cards', await p.locator('.hcard').count());
+for (const [n,f] of [['who',0.06],['career',0.16],['ascent',0.26],['vision',0.62],['hole',0.93]]) {
+  await p.evaluate(y => window.scrollTo(0, y), Math.round(H*f));
+  await p.waitForTimeout(2400);
+  await p.screenshot({ path: `shots/live/L-${n}.png` });
+  process.stdout.write(n + ' ');
 }
-console.log('\n' + (errs.length ? 'errors: ' + [...new Set(errs)].join(' | ') : 'no console errors'));
+console.log('\n' + (errs.length ? 'ERRORS: ' + [...new Set(errs)].join(' | ') : 'no console errors'));
 await b.close();

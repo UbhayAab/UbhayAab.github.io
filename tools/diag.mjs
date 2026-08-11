@@ -1,0 +1,16 @@
+﻿import { chromium } from 'playwright';
+const b = await chromium.launch();
+const p = await b.newPage({ viewport: { width: 1400, height: 900 } });
+const errs = [];
+p.on('pageerror', e => errs.push('PAGEERROR: ' + e.message + '\n' + String(e.stack).split('\n').slice(0,3).join('\n')));
+p.on('console', m => { if (m.type() === 'error') errs.push('CONSOLE: ' + m.text()); });
+p.on('requestfailed', r => errs.push('REQFAIL: ' + r.url() + ' ' + (r.failure()?.errorText || '')));
+p.on('response', r => { if (r.status() >= 400) errs.push('HTTP ' + r.status() + ' ' + r.url()); });
+await p.goto('http://127.0.0.1:4199/', { waitUntil: 'load' });
+await p.waitForTimeout(2500);
+console.log(errs.length ? errs.join('\n---\n') : 'no errors');
+console.log('--- counts');
+console.log('arcade-grid children:', await p.locator('#arcade-grid > *').count());
+console.log('vision el:', await p.locator('#vision-grid').count(), 'children:', await p.locator('#vision-grid > *').count());
+console.log('body classes:', await p.evaluate(() => document.documentElement.className));
+await b.close();

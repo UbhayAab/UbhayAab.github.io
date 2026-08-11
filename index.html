@@ -22,6 +22,35 @@
 
 <a class="skip" href="#work">Skip to content</a>
 
+<!-- Boot screen. Inline, above the stylesheet's reveal rules, so it is painted
+     on the very first frame and does not depend on a module having loaded.
+     It removes itself on window load even if boot.js never runs. -->
+<div id="boot" class="no-print" aria-hidden="true">
+  <div class="boot-in">
+    <p class="mono boot-line">// SYSTEM ONLINE</p>
+    <div class="boot-bar"><i></i></div>
+    <p class="mono boot-log" id="boot-log">checking WebGL2</p>
+  </div>
+</div>
+
+<!-- Warp wipe. One element, driven by a class, used for every route change. -->
+<div id="warp" class="no-print" aria-hidden="true"></div>
+
+<header id="topnav" class="no-print">
+  <a class="brand mono" href="#hero" aria-label="Home">UBHAY_<i></i></a>
+  <nav aria-label="Primary">
+    <a href="#hero" data-nav="hero">home</a>
+    <a href="#vision" data-nav="vision">vision</a>
+    <a href="#work" data-nav="work">work</a>
+    <a href="#arcade" data-nav="arcade">games</a>
+    <a href="#/consult" data-nav="consult">consult</a>
+  </nav>
+  <div class="nav-right">
+    <button class="btn icon" id="theme" aria-label="Switch to light theme" title="Theme">&#9788;</button>
+    <a class="btn cta" href="#/consult">work with me</a>
+  </div>
+</header>
+
 <!-- The flight runs behind the entire page, not just the hero: scrolling the
      document flies the mission. Fixed and pointer-events:none so it never
      interferes with the content on top of it. -->
@@ -176,11 +205,12 @@
 <section id="arcade">
   <div class="wrap">
     <p class="eyebrow rise">08 / arcade</p>
-    <h2 class="rise" style="--d:60ms">Five games built out<br>of the same numbers.</h2>
+    <h2 class="rise" style="--d:60ms">Twenty-nine games,<br>and none of them lie to you.</h2>
     <p class="lede rise" style="--d:120ms">
-      Not decoration. Each one is a real problem from the work above, shrunk to
-      something you can lose at in ninety seconds. Keyboard playable, scores kept locally,
-      and the par score on the first one is the recipe actually shipped.
+      Not decoration. The frontier ones are real problems from the thesis above, shrunk to
+      something you can lose at in ninety seconds. The casino ones compute their own house edge
+      and show it to you. The classics are here because they are good. Keyboard playable,
+      scores kept locally, nothing sent anywhere.
     </p>
     <div class="grid" id="arcade-grid"></div>
     <div id="stage" hidden></div>
@@ -216,6 +246,7 @@
     </p>
     <p class="row rise" style="--d:240ms;margin-top:60px;border-top:1px solid var(--line);padding-top:22px">
       <span id="stamp">built from measured data</span>
+      <span><a href="#/consult">work with me</a></span>
       <span><a href="https://github.com/UbhayAab/UbhayAab.github.io">source</a></span>
     </p>
   </div>
@@ -261,6 +292,7 @@
 
 <script src="./data/site-data.js"></script>
 <script src="./data/profile.js"></script>
+<script src="./data/vision.js"></script>
 <script type="module" src="./js/boot.js"></script>
 </body>
 </html>
