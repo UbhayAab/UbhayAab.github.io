@@ -27,6 +27,8 @@ export const PHASES = [
 const EARTH_R_WORLD = 3200;
 const ALT_SCALE = 1150;   // world units at the top of the compressed altitude
 
+const mix3 = (a, b, t) => [lerp(a[0], b[0], t), lerp(a[1], b[1], t), lerp(a[2], b[2], t)];
+
 export function createDirector() {
   const traj = integrateAscent(0.05, 600);
   const mecoT = traj.events.meco?.t ?? 152;
@@ -65,9 +67,10 @@ export function createDirector() {
     return { low, high };
   }
 
-  function state(p, lateral = 0) {
+  function state(p, lateral = 0, day = 0) {
     p = clamp(p, 0, 1);
     lateral = clamp(lateral, -1, 1);
+    day = clamp(day, 0, 1);
     const phase = phaseOf(p);
     const t = missionTime(p);
     const tel = sampleAt(traj, Math.max(0.1, t));
@@ -210,7 +213,10 @@ export function createDirector() {
 
     // Earth grows in across a long window instead of switching on between two
     // frames, which is what made it appear out of nowhere.
-    const earthIn = smoothstep(0.180, 0.340, p) * (1 - smoothstep(0.545, 0.624, p));
+    // Gone before the warp rig takes over the camera at 0.520, or the planet
+    // is still being drawn in the ascent frame while the camera is somewhere
+    // else entirely and it swings through the shot.
+    const earthIn = smoothstep(0.180, 0.340, p) * (1 - smoothstep(0.455, 0.522, p));
 
     // Where the burning engines are: used both to emit the plume and to light
     // the hull from below.
@@ -219,6 +225,57 @@ export function createDirector() {
     const enginePos = p > 0.345
       ? along(shipPos, -2.6)
       : along(boosterPos, -2.6);
+
+    // --- the warp shot -----------------------------------------------------
+    // The warp used to be the only stretch of the flight with no shot design:
+    // the ship stayed on the ascent rig, which by this point in the trajectory
+    // has pitched it nearly horizontal and parked it behind the vision cards.
+    // The result was that it disappeared entirely at 0.60 and came back at
+    // 0.65 as a black speck lying sideways across the body text.
+    //
+    // It now gets its own rig, the same way the black hole does: a low
+    // three-quarter view from behind and below, nose pointed at the vanishing
+    // point the streaks radiate from, hauling in toward the camera as the warp
+    // winds up and away into the distance as it releases. The streak field is
+    // centred on the screen, so the ship has to be too.
+    // The composition shift ramps rather than switching. A hard on/off here
+    // teleports the camera by most of a frame width in one step, which is the
+    // most visible discontinuity the whole flight can have.
+    const frameShift = smoothstep(0.520, 0.566, p) * (1 - smoothstep(0.694, 0.772, p));
+    const warpShot = p > 0.520 && p < 0.700;
+    const warpIn = smoothstep(0.520, 0.600, p);
+    const warpOut = smoothstep(0.618, 0.664, p);
+    let warpCam = null;
+    let warpTarget = null;
+    let warpShipPos = null;
+    let warpShipRot = null;
+    let warpExhaust = null;
+    if (warpShot) {
+      // Three-quarter chase, about 30 degrees off the travel axis. Straight
+      // behind or straight ahead both foreshorten the vehicle into a disc and
+      // collapse the plume's screen-space direction to nothing, which is what
+      // turns the exhaust back into the round blob this was rebuilt to avoid.
+      warpCam = [
+        lerp(102, 62, warpIn) + lateral * 30,
+        lerp(37, 23, warpIn),
+        lerp(144, 90, warpIn) + warpOut * 260,
+      ];
+      warpTarget = [-6, -6, lerp(-26, 4, warpIn)];
+      // Slides forward down the tunnel as the warp releases rather than
+      // sliding off an edge of the frame.
+      warpShipPos = [-6, -8, lerp(-26, 4, warpIn) - warpOut * 760];
+      // rotX of -pi/2 lays the vehicle's +Y nose along -Z, which is the
+      // direction the streaks converge on. The rotZ is bank, easing out of the
+      // roll it was already carrying.
+      warpShipRot = [
+        lerp(-1.42, -1.5708, warpIn),
+        lerp(0.16, 0.0, warpIn),
+        lerp(0.34, 0.05, warpIn),
+      ];
+      // Nose is -Z, so the exhaust is +Z: it fires back down the tunnel,
+      // toward the viewer's side of the frame and away from where it is going.
+      warpExhaust = [0, 0, 1];
+    }
 
     // --- the ship at the black hole ---------------------------------------
     // The finale used to be a bare shader: the ship simply vanished and
@@ -272,10 +329,21 @@ export function createDirector() {
       },
 
       // camera
-      camPos: holeShip ? holeSceneCam : camPos,
-      camTarget: holeShip ? holeSceneTarget : camTarget,
+      camPos: holeShip ? holeSceneCam : (warpCam || camPos),
+      camTarget: holeShip ? holeSceneTarget : (warpTarget || camTarget),
       fov: lerp(0.95, 1.22, Math.max(warp, flare)),
       holeCam,
+      day,
+      // Pushes both the subject and the warp tunnel's vanishing point into the
+      // right of the frame, in ndc-y units, so they land clear of the text
+      // column and stay locked to each other. The renderer scales it to zero
+      // on a narrow screen.
+      frameOffset: frameShift > 0.002 ? [0.42 * frameShift, -0.19 * frameShift] : null,
+      warpShot,
+      // The hole stays right of the text column for the whole approach and
+      // only slides back to centre for the final section, where the copy is
+      // short and the image is meant to take the frame.
+      holeShift: [0.34 * (1 - smoothstep(0.88, 0.975, p)), 0],
 
       // background
       skyAlt: clamp(altNorm * 1.35 + (p > 0.43 ? 1 : 0), 0, 1),
@@ -285,26 +353,39 @@ export function createDirector() {
 
       // lighting, matched to the sky so reflections and fog agree with it
       lightDir: holeShip ? v3.normalize([-0.52, 0.26, -0.81]) : v3.normalize([0.45, 0.72, 0.52]),
-      ambient: holeShip ? 0.46 : lerp(0.40, 0.14, smoothstep(0.15, 0.45, p)),
+      ambient: holeShip
+        ? lerp(0.46, 0.62, day)
+        : lerp(lerp(0.40, 0.14, smoothstep(0.15, 0.45, p)), 0.30, day),
       // At the hole the environment is the accretion disk, not Earth's sky.
       // Leaving the sky palette in place lit the ship cold blue while it sat
       // beside a furnace, which is the single most obvious way to make a
       // metal object look composited in rather than present.
-      skyLow: holeShip ? [0.40, 0.235, 0.115] : sky.low,
-      skyHigh: holeShip ? [0.020, 0.021, 0.036] : sky.high,
+      //
+      // In light mode the environment is paper. A mirror-finish hull in a
+      // bright environment is a bright hull, which on a light page is an
+      // invisible one, so light mode also darkens the base colour and drops
+      // the metalness: the vehicle becomes a drawn object rather than a
+      // reflective one. That is the blueprint the brief asks for.
+      skyLow: holeShip
+        ? mix3([0.40, 0.235, 0.115], [0.62, 0.50, 0.40], day)
+        : mix3(sky.low, [0.60, 0.64, 0.72], day),
+      skyHigh: holeShip
+        ? mix3([0.020, 0.021, 0.036], [0.80, 0.82, 0.88], day)
+        : mix3(sky.high, [0.86, 0.89, 0.95], day),
+      inkHull: day,
       // Air only exists low down; above about 60 km there is nothing to fog with.
       fog: lerp(0.55, 0.0, smoothstep(0.02, 0.34, altNorm)),
       fogDist: lerp(900, 4200, altNorm),
       // The ship's origin IS its engine plane, so at the black hole the plume
       // has to follow the overridden position. Leaving it on the ascent value
       // left a flame burning in empty space on the far side of the frame.
-      enginePos: holeShip ? holeShipPos : enginePos,
+      enginePos: holeShip ? holeShipPos : (warpShipPos || enginePos),
       engineLight: holeShip ? 0.25 : 1,
       // Derived from the ship's actual attitude rather than hardcoded. A fixed
       // vector pointed the plume at the camera while the ship faced elsewhere,
       // so the exhaust drifted away and sat as a separate blob in the frame.
       //   axis = rotY(ry) * rotZ(rz) * (0,1,0)
-      exhaustDir: holeShip
+      exhaustDir: warpShot && !holeShip ? warpExhaust : holeShip
         ? (() => {
           const ry = holeShipRot[1];
           const rz = holeShipRot[2];
@@ -330,12 +411,12 @@ export function createDirector() {
 
       // vehicle
       showVehicle: true,
-      roll: holeShip ? 0.4 + approach * 1.1 : roll,
-      boosterVisible: boosterVisible && !holeShip,
+      roll: holeShip ? 0.4 + approach * 1.1 : (warpShot ? roll * 0.4 : roll),
+      boosterVisible: boosterVisible && !holeShip && !warpShot,
       boosterPos,
       boosterRot: [0, 0, -pitch * (1 - sepP) - boosterFlip],
-      shipPos: holeShip ? holeShipPos : shipPos,
-      shipRot: holeShip ? holeShipRot : [0, 0, -pitch],
+      shipPos: holeShip ? holeShipPos : (warpShipPos || shipPos),
+      shipRot: holeShip ? holeShipRot : (warpShipRot || [0, 0, -pitch]),
       // Engines off. It is in orbit, not burning, and a coasting ship trailing a
       // faint plume just left a detached clump of particles in the frame.
       thrust: holeShip ? 0 : thrust,

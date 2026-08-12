@@ -297,23 +297,31 @@ export function mountArcade({ stats, bench, subscribe, audio }) {
   }).join('');
   grid.parentElement.insertBefore(bar, grid);
 
+  // Cabinets, not cards.
+  //
+  // Twenty-nine of the old cards with a full blurb visible on each ran to
+  // four and a half screens of identical rectangles, which is a list, not an
+  // arcade. A cabinet is a marquee, a screen and a control panel; the blurb
+  // lives on the screen and only comes up when you look at one. Same content,
+  // a third of the height, and it reads as a room rather than a table.
   GAMES.forEach((g, i) => {
-    const card = el('article', 'card rise');
-    card.dataset.cat = g.cat;
-    card.style.setProperty('--d', `${120 + (i % 6) * 60}ms`);
-    card.innerHTML = `
-      <span class="spine"></span>
-      <div class="row" style="margin-bottom:14px">
-        <span class="mono">${g.tag}</span>
-        <span class="mono" data-best>${best(g.id) ? `best ${best(g.id)}` : ''}</span>
+    const cab = el('article', 'cab rise');
+    cab.dataset.cat = g.cat;
+    cab.dataset.game = g.id;
+    cab.style.setProperty('--d', `${90 + (i % 10) * 45}ms`);
+    cab.innerHTML = `
+      <div class="cab-marquee"><span>${g.name}</span></div>
+      <div class="cab-screen">
+        <div class="cab-art" aria-hidden="true"><i></i><i></i><i></i></div>
+        <p class="cab-blurb">${g.blurb}</p>
+        <span class="cab-tag mono">${g.tag}</span>
       </div>
-      <h3>${g.name}</h3>
-      <p>${g.blurb}</p>
-      <div class="row">
+      <div class="cab-panel">
         <button class="btn" data-play="${g.id}">play</button>
-        <span class="mono" style="font-size:10.5px">${g.controls}</span>
-      </div>`;
-    grid.appendChild(card);
+        <span class="mono cab-best" data-best>${best(g.id) ? `best ${best(g.id)}` : ''}</span>
+      </div>
+      <p class="cab-keys mono">${g.controls}</p>`;
+    grid.appendChild(cab);
   });
 
   bar.addEventListener('click', (e) => {
@@ -324,6 +332,7 @@ export function mountArcade({ stats, bench, subscribe, audio }) {
     [...grid.children].forEach((card) => {
       card.hidden = cat !== 'all' && card.dataset.cat !== cat;
     });
+    grid.dataset.cat = cat;
     audio.tick();
   });
 
@@ -367,15 +376,20 @@ export function mountArcade({ stats, bench, subscribe, audio }) {
     // Lets the page stand the flight down while a game has focus.
     dispatchEvent(new CustomEvent('arcade:open', { detail: { id } }));
 
-    const shell = el('div', 'card');
-    shell.style.marginTop = '26px';
+    // The running game gets the cabinet around it: lit marquee on top, bezel
+    // around the screen, control panel underneath.
+    const shell = el('div', 'cab-live');
+    shell.dataset.cat = meta.cat;
     shell.innerHTML = `
-      <div class="row" style="margin-bottom:18px">
-        <span><b class="mono" style="font-size:15px">${meta.name}</b>
-          <span class="mono" style="color:var(--faint);margin-left:10px">${meta.controls}</span></span>
+      <div class="cab-live-marquee">
+        <span class="mono">${meta.name}</span>
+        <span class="mono cab-live-tag">${meta.tag}</span>
         <button class="btn" data-close>close</button>
       </div>
-      <div data-host role="application" aria-label="${meta.name} game" tabindex="0"></div>`;
+      <div class="cab-live-bezel">
+        <div data-host role="application" aria-label="${meta.name} game" tabindex="0"></div>
+      </div>
+      <p class="cab-live-keys mono">${meta.controls}</p>`;
     stage.appendChild(shell);
     shell.querySelector('[data-close]').addEventListener('click', () => {
       live?.destroy?.(); live = null; stage.hidden = true; stage.innerHTML = '';

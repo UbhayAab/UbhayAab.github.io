@@ -1,4 +1,4 @@
-﻿import { chromium } from 'playwright';
+import { chromium } from 'playwright';
 const b = await chromium.launch();
 const p = await b.newPage({ viewport: { width: 1400, height: 900 } });
 const errs = [];
@@ -36,10 +36,8 @@ await p.waitForTimeout(500);
 check('consult closes', await p.locator('#consult').evaluate(n => n.hidden));
 // magnetic cursor snaps
 await p.mouse.move(700, 500); await p.waitForTimeout(200);
-await p.locator('[data-play="snake"]').scrollIntoViewIfNeeded();
-const box = await p.locator('[data-play="snake"]').boundingBox();
-await p.mouse.move(box.x + box.width/2, box.y + box.height/2);
-await p.waitForTimeout(300);
+await p.locator('[data-play="snake"]').hover();
+await p.waitForTimeout(400);
 check('cursor snaps with label', await p.locator('#cursor').evaluate(n => n.classList.contains('snap') && n.dataset.label === 'PLAY'), await p.locator('#cursor').evaluate(n => n.dataset.label || 'none'));
 console.log(errs.length ? '\nERRORS:\n'+[...new Set(errs)].slice(0,6).join('\n') : '\nno console errors');
 await b.close();

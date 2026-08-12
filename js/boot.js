@@ -492,6 +492,7 @@ function main() {
     canvas,
     hud: telemetry,
     motion: () => motion,
+    theme: () => (document.documentElement.classList.contains('light') ? 'light' : 'dark'),
   });
   if (flight) {
     new ResizeObserver(() => flight.resize()).observe(canvas);
@@ -503,13 +504,87 @@ function main() {
     telemetry?.remove();
   }
 
+  /* ------------------------------------------------ scroll to story time */
+  // Raw scroll fraction is the wrong clock for the flight. The arcade went
+  // from 5 cards to 29 and swallowed most of the black hole approach with it,
+  // because every phase boundary in the director is a hardcoded fraction of a
+  // page whose length depends on how much content happens to be in it.
+  //
+  // This maps document position to story position through the section
+  // boundaries themselves: each section owns a fixed slice of the mission, so
+  // "the warp fires at the thesis" and "the hole arrives at the arcade" stay
+  // true whether a section is one screen tall or five.
+  const BEATS = [
+    ['hero', 0.00], ['who', 0.11], ['career', 0.20], ['ventures', 0.33],
+    ['signal', 0.44], ['work', 0.50], ['rhythm', 0.545], ['vision', 0.575],
+    ['arcade', 0.665], ['receipts', 0.82], ['contact', 0.92],
+  ];
+  let anchors = [];
+  // Cached, because reading document.body.scrollHeight inside a scroll handler
+  // forces a synchronous layout on every single scroll event, after the style
+  // writes the previous frame just made. That is a reflow per event for a
+  // number that only changes when the page does.
+  let maxScroll = 1;
+  function measureAnchors() {
+    const max = Math.max(1, document.body.scrollHeight - innerHeight);
+    maxScroll = max;
+    anchors = BEATS
+      .map(([id, story]) => {
+        const el = document.getElementById(id);
+        return el ? { doc: clamp(el.offsetTop / max, 0, 1), story } : null;
+      })
+      .filter(Boolean)
+      .sort((a, b) => a.doc - b.doc);
+    // Both ends have to be pinned or the first and last segments extrapolate.
+    if (!anchors.length || anchors[0].doc > 0) anchors.unshift({ doc: 0, story: 0 });
+    anchors.push({ doc: 1, story: 1 });
+  }
+  function storyAt(docP) {
+    if (anchors.length < 2) return docP;
+    for (let i = 1; i < anchors.length; i += 1) {
+      const b = anchors[i];
+      if (docP <= b.doc || i === anchors.length - 1) {
+        const a = anchors[i - 1];
+        const span = Math.max(1e-6, b.doc - a.doc);
+        return a.story + ((clamp(docP, a.doc, b.doc) - a.doc) / span) * (b.story - a.story);
+      }
+    }
+    return docP;
+  }
+  measureAnchors();
+  new ResizeObserver(() => measureAnchors()).observe(document.body);
+
+  // How much of the viewport the card grids are covering. Measured from the
+  // real rectangles rather than assumed per section, so it stays right when a
+  // category filter shortens the arcade or a card wraps.
+  const DENSE = ['#work-grid', '#arcade-grid', '#vision-grid', '#ventures .grid'];
+  let coverTimer = 0;
+  function measureCoverage() {
+    let covered = 0;
+    for (const sel of DENSE) {
+      const n = $(sel);
+      if (!n) continue;
+      const r = n.getBoundingClientRect();
+      const top = Math.max(0, r.top);
+      const bottom = Math.min(innerHeight, r.bottom);
+      if (bottom > top) covered += (bottom - top) / innerHeight;
+    }
+    flight?.setCoverage(Math.min(1, covered));
+  }
+
   const onScroll = () => {
-    scrollP = scrollY / Math.max(1, document.body.scrollHeight - innerHeight);
+    const docP = scrollY / maxScroll;
+    scrollP = storyAt(docP);
     flight?.setScroll(scrollP);
     // Horizontal sections slide the vehicle sideways, so the sideways motion
     // of the content and the sideways motion of the rocket are the same event.
     flight?.setLateral(career ? career.update() : 0);
     if (telemetry) telemetry.classList.toggle('on', scrollP > 0.02 && scrollP < 0.985);
+    // Throttled: this reads layout, and reading layout inside a scroll handler
+    // on every event is its own stutter.
+    if (!coverTimer) {
+      coverTimer = setTimeout(() => { coverTimer = 0; measureCoverage(); }, 120);
+    }
   };
   addEventListener('scroll', onScroll, { passive: true });
   onScroll();

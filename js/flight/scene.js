@@ -9,9 +9,10 @@
 //   solids   lit meshes: pad, Super Heavy booster, Starship ship
 //   plume    additive instanced billboards
 //
-// One context, one depth buffer, no framebuffers. Everything composites by
-// draw order and blend mode, which is enough here and keeps the whole file
-// under 400 lines.
+// One context, one depth buffer, and exactly one framebuffer: the black hole
+// raymarch renders into a half-scale target and gets blitted up, because it is
+// the only pass whose cost is genuinely per-pixel. Everything else composites
+// by draw order and blend mode.
 
 import {
   m4, v3, clamp, lerp, smoothstep, remap,
@@ -54,6 +55,7 @@ uniform vec3  uEnginePos;   // where the plume is, in world space
 uniform float uEngineGlow;  // 0..1
 uniform float uFog;         // atmospheric blend, 0..1
 uniform float uFogDist;     // distance at which fog saturates
+uniform float uInk;         // 0 = lit metal, 1 = blueprint ink on paper
 
 out vec4 outColor;
 
@@ -76,6 +78,14 @@ void main() {
   float diff = max(dot(n, l), 0.0);
   vec3 base = uColor;
 
+  // Blueprint mode. A mirror-finish hull standing in a bright environment is a
+  // bright hull, and a bright hull on a light page is an invisible one. The
+  // fix is not to dim the canvas; it is to stop the vehicle being a mirror.
+  // The base goes to a dark graphite, the metalness drops so it reflects the
+  // paper far less, and the whole thing reads as a drawn object.
+  base = mix(base, base * 0.16 + vec3(0.055, 0.065, 0.085), uInk);
+  float metal = mix(uMetal, uMetal * 0.22, uInk);
+
   // Ring welds. Starship is stacked from 1.8 m steel rings and the seams are
   // clearly visible on the real vehicle.
   float ring = smoothstep(0.88, 1.0, abs(fract(vWorld.y / 1.83) * 2.0 - 1.0));
@@ -90,12 +100,12 @@ void main() {
   // Specular. Blinn-Phong for the key light plus a mirror sample of the
   // environment, weighted by a Schlick fresnel.
   vec3 h = normalize(l + v);
-  float spec = pow(max(dot(n, h), 0.0), mix(24.0, 96.0, uMetal));
+  float spec = pow(max(dot(n, h), 0.0), mix(24.0, 96.0, metal));
   float fres = pow(1.0 - max(dot(n, v), 0.0), 5.0);
   float f = mix(0.04, 1.0, fres);
   vec3 refl = envSample(reflect(-v, n));
-  col = mix(col, refl * 1.35, uMetal * clamp(f * 1.5 + 0.42, 0.0, 0.95));
-  col += mix(uSkyHigh * 3.0, vec3(0.95, 0.97, 1.0), 0.55) * spec * mix(0.20, 0.45, uMetal);
+  col = mix(col, refl * 1.35, metal * clamp(f * 1.5 + 0.42, 0.0, 0.95));
+  col += mix(uSkyHigh * 3.0, vec3(0.95, 0.97, 1.0), 0.55) * spec * mix(0.20, 0.45, metal) * (1.0 - uInk * 0.6);
 
   // The plume is a real light source. Without this the engines fire and the
   // hull above them stays evenly lit, which reads as fake immediately.
@@ -108,7 +118,10 @@ void main() {
   }
 
   col += base * uEmissive;
-  col += mix(uSkyLow, uSkyHigh, 0.6) * pow(1.0 - max(dot(n, v), 0.0), 2.2) * uRim * 2.4;
+    float rimF = pow(1.0 - max(dot(n, v), 0.0), 2.2) * uRim;
+  col += mix(uSkyLow, uSkyHigh, 0.6) * rimF * 2.4 * (1.0 - uInk);
+  // On paper the edge of a solid is a dark contour, not a glow.
+  col -= vec3(0.30, 0.33, 0.40) * rimF * 1.6 * uInk;
 
   // Aerial perspective. Distant geometry has air in front of it and must sink
   // toward the sky colour, otherwise near and far read at the same contrast
@@ -128,6 +141,8 @@ uniform vec2 uRes;
 uniform float uTime;
 uniform float uAlt;      // 0 = pad, 1 = space
 uniform float uWarp;     // 0..1
+uniform float uDay;      // 0 = night launch, 1 = blueprint / light theme
+uniform vec2 uCenter;    // where the warp tunnel converges, in ndc units
 uniform mat3 uCamBasis;
 uniform float uFov;
 out vec4 outColor;
@@ -166,7 +181,7 @@ void main() {
       float h = hash31(cell);
       if (h > 0.977) {
         // Under warp, stars smear along their radial direction from centre.
-        vec2 rad = normalize(ndc + 1e-5);
+        vec2 rad = normalize(ndc - uCenter + 1e-5);
         float along = dot(f.xy, rad);
         float across = length(f.xy - rad*along);
         float len = mix(0.30, 0.03, uWarp);
@@ -175,7 +190,26 @@ void main() {
       }
     }
   }
-  sky += stars * starMix;
+  // Light theme is not this sky dimmed. Dimming it was the first attempt and
+  // it produced a grey smear: at 16% opacity the vehicle was a ghost and the
+  // whole flight may as well not have been running.
+  //
+  // Instead the whole scene becomes a blueprint. Paper stays paper all the way
+  // to orbit rather than going to black, because a light page whose background
+  // turns black under the text is unreadable at the bottom of the scroll. The
+  // altitude cue survives as paper cooling from warm to cold blue-grey, and
+  // everything that was additive light at night becomes subtractive ink.
+  if (uDay > 0.001) {
+    vec3 paperLow  = mix(vec3(0.93,0.94,0.97), vec3(0.88,0.90,0.95), pow(1.0-uv.y, 2.0));
+    vec3 paperHigh = vec3(0.78,0.82,0.90);
+    vec3 paper = mix(paperLow, paperHigh, smoothstep(0.0, 0.85, uAlt));
+    // A pale warm band on the horizon at the pad, exactly where the sodium
+    // glow is at night, so the two themes read as the same moment.
+    paper -= vec3(0.02,0.05,0.09) * horizon * (1.0 - smoothstep(0.10,0.55,uAlt));
+    // Stars become ink specks: the same field, subtracted.
+    paper -= stars * starMix * 0.55;
+    sky = mix(sky, paper, uDay);
+  }
 
   // Warp.
   //
@@ -185,8 +219,12 @@ void main() {
   // fly outward from the centre with time, accelerating as they go, so the
   // motion exists whether or not you are scrolling.
   if (uWarp > 0.001) {
-    float r = length(ndc);
-    float ang = atan(ndc.y, ndc.x);
+    // The tunnel converges wherever the vehicle is, which on this page is the
+    // right of the frame: the left column is the text column, and a vanishing
+    // point sitting under a paragraph is a vanishing point nobody can see.
+    vec2 rd = ndc - uCenter;
+    float r = length(rd);
+    float ang = atan(rd.y, rd.x);
     const float LANES = 260.0;
     const float TAU = 6.28318530718;
     float laneF = ang / TAU * LANES;
@@ -217,12 +255,19 @@ void main() {
       vec3 tint = mix(vec3(0.45, 0.66, 1.0), vec3(1.0, 0.97, 0.92), uWarp * 0.55 * t);
       streaks += tint * body * thin * (0.35 + h * 0.95);
     }
-    sky += streaks * uWarp * 1.7;
 
-    // Core rushing at the viewer, and a faint radial smear of everything else
-    // so the background is dragged along too.
-    sky += vec3(0.24, 0.44, 1.0) * exp(-r * 3.6) * uWarp * 0.42;
-    sky *= mix(1.0, 1.0 + r * 0.55, uWarp * 0.5);
+    // Night: streaks are light added to a dark sky. Day: the same streaks are
+    // ink drawn on paper. Subtracting rather than adding is what keeps the
+    // blueprint reading as a drawing instead of a blown-out white screen.
+    vec3 nightWarp = sky + streaks * uWarp * 1.7
+      + vec3(0.24, 0.44, 1.0) * exp(-r * 3.6) * uWarp * 0.42;
+    nightWarp *= mix(1.0, 1.0 + r * 0.55, uWarp * 0.5);
+
+    vec3 ink = vec3(0.42, 0.46, 0.56);
+    vec3 dayWarp = sky - ink * min(streaks * uWarp * 1.25, vec3(1.4))
+      - vec3(0.05, 0.07, 0.11) * exp(-r * 3.2) * uWarp;
+
+    sky = mix(nightWarp, dayWarp, uDay);
   }
 
   sky += (hash21(gl_FragCoord.xy + fract(uTime))-0.5)*0.012;
@@ -278,6 +323,7 @@ precision highp float;
 in float vLife;
 in vec2 vUv;
 uniform float uIntensity;
+uniform float uDay;
 out vec4 outColor;
 void main() {
   float life = clamp(vLife, 0.0, 1.0);
@@ -297,7 +343,27 @@ void main() {
   col = mix(col, vec3(1.0), across * alongT * (1.0 - age) * 0.55);
 
   float a = shape * life * life * uIntensity;
-  outColor = vec4(col * a, a);
+
+  // On paper, additive light is invisible: a white-hot plume drawn over a
+  // white page is a white smear, which is exactly what light mode looked like
+  // before this. In day the pass switches to reverse-subtract, so what gets
+  // written here is what is REMOVED from the paper. Taking out cyan leaves
+  // orange, so the plume comes out as a warm ink trail with the densest part
+  // darkest, which is how anyone would draw one.
+  vec3 dayInk = vec3(0.06, 0.42, 0.72) * (0.55 + 0.45 * (1.0 - age));
+  outColor = vec4(mix(col * a, dayInk * a * 1.25, uDay), a);
+}`;
+
+// Upscales the half-scale black hole target onto the canvas. Bilinear from the
+// sampler is enough: the raymarch output has no hard edges in it anywhere
+// except the horizon, and that edge is a silhouette rather than a detail.
+const BLIT_FRAG = `#version 300 es
+precision highp float;
+uniform sampler2D u_tex;
+uniform vec2 uRes;
+out vec4 outColor;
+void main() {
+  outColor = texture(u_tex, gl_FragCoord.xy / uRes);
 }`;
 
 const QUAD = {
@@ -324,6 +390,7 @@ export function createScene(canvas, { tier = 'high' } = {}) {
       sky: compileProgram(gl, FULLSCREEN_VERT, SKY_FRAG, 'sky'),
       plume: compileProgram(gl, PLUME_VERT, PLUME_FRAG, 'plume'),
       hole: compileProgram(gl, FULLSCREEN_VERT, BLACKHOLE_FRAG, 'blackhole'),
+      blit: compileProgram(gl, FULLSCREEN_VERT, BLIT_FRAG, 'blit'),
     };
   } catch (e) {
     console.error(e);
@@ -353,19 +420,63 @@ export function createScene(canvas, { tier = 'high' } = {}) {
     steps: BH_STEPS[tier] || BH_STEPS.high,
     maxParticles,
     holeMode: false,
+    coverage: 0,
   };
+
+  /* ------------------------------------------------- black hole render target */
+  // The one place this file uses a framebuffer. The raymarch is the only pass
+  // whose cost is genuinely per-pixel, so it gets its own half-scale buffer
+  // and everything else keeps the full one. Returns false if the target could
+  // not be created, in which case the caller draws straight to the canvas.
+  const hole = { fbo: null, tex: null, w: 0, h: 0, ok: true, tick: 0, warm: false };
+  function holeTarget(w, h) {
+    if (!hole.ok) return false;
+    const scale = 0.5;
+    const tw = Math.max(64, Math.round(w * scale));
+    const th = Math.max(64, Math.round(h * scale));
+    if (hole.fbo && hole.w === tw && hole.h === th) return true;
+    try {
+      if (!hole.fbo) {
+        hole.fbo = gl.createFramebuffer();
+        hole.tex = gl.createTexture();
+      }
+      gl.bindTexture(gl.TEXTURE_2D, hole.tex);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, tw, th, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+      gl.bindFramebuffer(gl.FRAMEBUFFER, hole.fbo);
+      gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, hole.tex, 0);
+      const status = gl.checkFramebufferStatus(gl.FRAMEBUFFER);
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+      if (status !== gl.FRAMEBUFFER_COMPLETE) { hole.ok = false; return false; }
+      hole.w = tw; hole.h = th;
+      hole.warm = false;
+      return true;
+    } catch {
+      hole.ok = false;
+      return false;
+    }
+  }
 
   function resize() {
     const cap = matchMedia('(pointer: coarse)').matches ? 1.5 : 2;
     let dpr = Math.min(devicePixelRatio || 1, cap);
     if (tier === 'low') dpr = 1;
     let budget = matchMedia('(pointer: coarse)').matches ? 1_000_000 : 2_400_000;
-    // The black hole costs 300 to 500 geodesic integration steps per pixel,
-    // so it is the one pass where pixel count genuinely dominates. Its image
-    // is smooth, so dropping the backing store and letting the browser scale
-    // it up is nearly invisible and roughly triples the frame rate. The CSS
-    // size never changes, so nothing reflows.
-    if (state.holeMode) budget = Math.round(budget * 0.38);
+    // The hole now has its own half-scale target, so the whole canvas no
+    // longer has to shrink for it. It still drops some, because the vehicle is
+    // being drawn over a fullscreen raymarch and the compositor has work to do
+    // either way, but nothing like the old 0.38.
+    if (state.holeMode) budget = Math.round(budget * 0.72);
+    // Occlusion. Through the card sections the canvas is almost entirely
+    // behind opaque panels, and integrating several hundred geodesic steps for
+    // a pixel that is underneath a game cabinet is work nobody can see. This
+    // measured out as the whole of the page's remaining stutter: scrolling the
+    // arcade had 57 of 150 frames arrive late with a p95 of 300 ms, against
+    // zero late frames everywhere else.
+    if (state.coverage > 0.01) budget = Math.round(budget * lerp(1, 0.34, state.coverage));
     let w = Math.round((canvas.clientWidth || innerWidth) * dpr);
     let h = Math.round((canvas.clientHeight || innerHeight) * dpr);
     const px = w * h;
@@ -478,7 +589,7 @@ export function createScene(canvas, { tier = 'high' } = {}) {
     // most a few steps a frame so the image never visibly pops.
     if (state.holeMode && dt > 0) {
       const ms = dt * 1000;
-      const ceiling = BH_STEPS[tier] || BH_STEPS.high;
+      const ceiling = Math.round((BH_STEPS[tier] || BH_STEPS.high) * lerp(1, 0.62, state.coverage));
       // The floor is 70, not 24. Below roughly 60 steps the rays that should
       // fall through the horizon escape instead, the shadow fills with stars,
       // and the black hole stops being a black hole. Resolution degrades
@@ -493,15 +604,51 @@ export function createScene(canvas, { tier = 'high' } = {}) {
     gl.enable(gl.DEPTH_TEST);
     gl.depthFunc(gl.LEQUAL);
     gl.disable(gl.BLEND);
-    gl.clearColor(0, 0, 0, 1);
+    // Paper, not black, in light mode: any pixel the passes miss must not be
+    // a hole punched through the page.
+    if (f.day > 0.5) gl.clearColor(0.90, 0.915, 0.95, 1); else gl.clearColor(0, 0, 0, 1);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
     const aspect = state.w / Math.max(1, state.h);
     const proj = m4.perspective(f.fov, aspect, 0.25, 6000);
-    const view = m4.lookAt(f.camPos, f.camTarget, [0, 1, 0]);
+
+    // Composition offset. Everything on this page lays text down the left and
+    // leaves the right of the frame for the vehicle, and during the warp the
+    // vehicle and the tunnel's vanishing point are the same thing. Both are
+    // therefore pushed right by the same amount, in the same units, so they
+    // cannot drift apart. Zero on a narrow screen, where the content is full
+    // width and there is no right-hand column to aim at.
+    const wide = clamp((aspect - 0.95) / 0.75, 0, 1);
+    const centre = f.frameOffset
+      ? [f.frameOffset[0] * wide, f.frameOffset[1] * wide]
+      : [0, 0];
+
+    let camTarget = f.camTarget;
+    if (centre[0] !== 0 || centre[1] !== 0) {
+      const fwd0 = v3.normalize(v3.sub(f.camTarget, f.camPos));
+      const r0 = v3.normalize(v3.cross([0, 1, 0], fwd0));
+      const u0 = v3.cross(fwd0, r0);
+      const d = Math.hypot(
+        f.camTarget[0] - f.camPos[0], f.camTarget[1] - f.camPos[1], f.camTarget[2] - f.camPos[2],
+      );
+      // ndc here is (frag - 0.5*res)/res.y, so half the frame is 0.5 units.
+      const halfH = d * Math.tan(f.fov * 0.5);
+      const ox = (centre[0] / 0.5) * halfH;
+      const oy = (centre[1] / 0.5) * halfH;
+      // r0 here is cross(worldUp, fwd), which is the negative of screen-right,
+      // so aiming the camera at +r0 puts the subject at screen +x. Getting this
+      // sign backwards parks the vehicle behind the text column, which is the
+      // exact thing the offset exists to prevent.
+      camTarget = [
+        f.camTarget[0] + r0[0] * ox - u0[0] * oy,
+        f.camTarget[1] + r0[1] * ox - u0[1] * oy,
+        f.camTarget[2] + r0[2] * ox - u0[2] * oy,
+      ];
+    }
+    const view = m4.lookAt(f.camPos, camTarget, [0, 1, 0]);
 
     // Camera basis for the fullscreen passes.
-    const fwd = v3.normalize(v3.sub(f.camTarget, f.camPos));
+    const fwd = v3.normalize(v3.sub(camTarget, f.camPos));
     const right = v3.normalize(v3.cross([0, 1, 0], fwd));
     const up = v3.cross(fwd, right);
     const basis = new Float32Array([
@@ -526,10 +673,32 @@ export function createScene(canvas, { tier = 'high' } = {}) {
         -hFwd[0], -hFwd[1], -hFwd[2],
       ]);
 
+      // The hole renders into its own half-scale target, then gets blitted up.
+      //
+      // Shrinking the whole canvas for it was the old approach and it costs the
+      // vehicle its edges: the rocket goes soft at exactly the moment it is
+      // silhouetted against the disk. Only the raymarch needs the smaller
+      // buffer, and its image is smooth enough that upscaling it is invisible.
+      // A quarter of the pixels at the same step count.
+      const useFbo = holeTarget(state.w, state.h);
+      // Temporal reuse. Once the canvas is mostly behind cabinets the hole is
+      // a slow-moving image in a strip down the right of the frame, so it is
+      // re-integrated every second or third frame and blitted from the cache
+      // in between. The disk's rotation runs at 20 to 30 Hz there; the ship,
+      // the plume and the page keep the full rate.
+      hole.tick += 1;
+      const every = useFbo ? 1 + Math.round(state.coverage * 2) : 1;
+      const redraw = !useFbo || hole.tick % every === 0 || !hole.warm;
+      if (useFbo && redraw) {
+        gl.bindFramebuffer(gl.FRAMEBUFFER, hole.fbo);
+        gl.viewport(0, 0, hole.w, hole.h);
+        hole.warm = true;
+      }
       const { program, uniforms } = programs.hole;
+      if (redraw) {
       gl.useProgram(program);
       gl.bindVertexArray(emptyVao);
-      gl.uniform2f(uniforms.u_res, state.w, state.h);
+      gl.uniform2f(uniforms.u_res, useFbo ? hole.w : state.w, useFbo ? hole.h : state.h);
       gl.uniform1f(uniforms.u_time, time * 0.001);
       gl.uniform3fv(uniforms.u_camPos, f.holeCam);
       gl.uniformMatrix3fv(uniforms.u_camBasis, false, holeBasis);
@@ -540,7 +709,24 @@ export function createScene(canvas, { tier = 'high' } = {}) {
       gl.uniform1f(uniforms.u_intensity, f.hole);
       gl.uniform1f(uniforms.u_diskTilt, 0.20);
       gl.uniform1f(uniforms.u_flare, f.flare || 0);
+      gl.uniform1f(uniforms.u_day, f.day || 0);
+      gl.uniform2f(uniforms.u_center, centre[0] ? centre[0] + 0.13 : 0, centre[1] * 0.75);
+      const hs = f.holeShift || [0, 0];
+      gl.uniform2f(uniforms.u_shift, hs[0] * wide, hs[1] * wide);
       gl.drawArrays(gl.TRIANGLES, 0, 3);
+      }
+
+      if (useFbo) {
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+        gl.viewport(0, 0, state.w, state.h);
+        const blit = programs.blit;
+        gl.useProgram(blit.program);
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, hole.tex);
+        gl.uniform1i(blit.uniforms.u_tex, 0);
+        gl.uniform2f(blit.uniforms.uRes, state.w, state.h);
+        gl.drawArrays(gl.TRIANGLES, 0, 3);
+      }
     } else {
       const { program, uniforms } = programs.sky;
       gl.useProgram(program);
@@ -549,6 +735,14 @@ export function createScene(canvas, { tier = 'high' } = {}) {
       gl.uniform1f(uniforms.uTime, time * 0.001);
       gl.uniform1f(uniforms.uAlt, f.skyAlt);
       gl.uniform1f(uniforms.uWarp, f.warp);
+      gl.uniform1f(uniforms.uDay, f.day || 0);
+      // In ndc-y units. Zero on a narrow screen, where the content is full
+      // width and there is no right-hand column to aim at.
+      // Biased a little further along than the vehicle itself, so the tunnel
+      // converges just past the nose rather than through the middle of the
+      // hull. The ship is then punching into the vanishing point instead of
+      // sitting on top of it.
+      gl.uniform2f(uniforms.uCenter, centre[0] + (centre[0] ? 0.13 : 0), centre[1] * 0.75);
       gl.uniformMatrix3fv(uniforms.uCamBasis, false, basis);
       gl.uniform1f(uniforms.uFov, 0.9);
       gl.drawArrays(gl.TRIANGLES, 0, 3);
@@ -573,6 +767,7 @@ export function createScene(canvas, { tier = 'high' } = {}) {
       gl.uniform1f(uniforms.uFogDist, f.fogDist);
       gl.uniform3fv(uniforms.uEnginePos, f.enginePos);
       gl.uniform1f(uniforms.uEngineGlow, f.thrust * f.engineLight);
+      gl.uniform1f(uniforms.uInk, f.inkHull || 0);
 
       if (f.showEarth) {
         const s = f.earthRadius;
@@ -615,6 +810,11 @@ export function createScene(canvas, { tier = 'high' } = {}) {
       const { program, uniforms } = programs.plume;
       gl.useProgram(program);
       gl.enable(gl.BLEND);
+      // Night adds light to a dark frame. Day removes ink from paper: same
+      // geometry, same alpha, opposite operator. Anything else on a light page
+      // is a white smear over white.
+      const dayMode = (f.day || 0) > 0.5;
+      gl.blendEquation(dayMode ? gl.FUNC_REVERSE_SUBTRACT : gl.FUNC_ADD);
       gl.blendFunc(gl.SRC_ALPHA, gl.ONE);
       gl.depthMask(false);
       gl.bindBuffer(gl.ARRAY_BUFFER, plume.instanceBuffer);
@@ -626,9 +826,11 @@ export function createScene(canvas, { tier = 'high' } = {}) {
       gl.uniform1f(uniforms.uScale, f.thrustStage === 1 ? 3.0 : 1.8);
       gl.uniform1f(uniforms.uStretch, f.thrustStage === 1 ? 3.2 : 2.4);
       gl.uniform1f(uniforms.uIntensity, clamp(f.thrust, 0, 1) * 0.9);
+      gl.uniform1f(uniforms.uDay, f.day || 0);
       gl.bindVertexArray(plume.vao);
       gl.drawElementsInstanced(gl.TRIANGLES, plume.count, plume.type, 0, live);
       gl.depthMask(true);
+      gl.blendEquation(gl.FUNC_ADD);
       gl.disable(gl.BLEND);
     }
   }
@@ -636,6 +838,12 @@ export function createScene(canvas, { tier = 'high' } = {}) {
   return {
     render,
     resize,
+    setCoverage(v) {
+      const next = clamp(v, 0, 1);
+      if (Math.abs(next - state.coverage) < 0.02) return;
+      state.coverage = next;
+      resize();
+    },
     setTier(t) {
       state.steps = BH_STEPS[t] || BH_STEPS.high;
     },

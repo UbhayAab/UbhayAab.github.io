@@ -173,7 +173,7 @@ section { z-index: 1; }
    that text actually lives and fades out across the right of the frame, which
    is where the vehicle flies. */
 section .wrap > * { position: relative; }
-#signal, #work, #rhythm, #arcade, #receipts, #contact {
+#ventures, #vision, #signal, #work, #rhythm, #arcade, #receipts, #contact {
   background:
     linear-gradient(90deg,
       rgba(6, 7, 11, 0.80) 0%,
@@ -928,6 +928,246 @@ table.data tr:hover td { background: rgba(255, 255, 255, 0.017); }
 @keyframes roll { to { background-position: 0 3px; } }
 
 /* ==========================================================================
+   The arcade wall.
+
+   Every game is a cabinet: a lit marquee, a screen, a control panel. The
+   blurb lives on the screen and comes up on hover or focus, which is what
+   takes twenty-nine of these from four and a half screens of identical
+   rectangles down to something that reads as a room you walk into.
+
+   Signal colour per category, so the wall has the same colour logic the
+   thesis section does.
+   ========================================================================== */
+#arcade-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 186px), 1fr));
+  gap: 12px;
+}
+.cab {
+  --sig: var(--accent);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: linear-gradient(180deg, var(--panel-2), var(--panel));
+  overflow: hidden;
+  transition: transform var(--dur-1) var(--ease-out), border-color var(--dur-1) var(--ease),
+    box-shadow var(--dur-2) var(--ease);
+}
+.cab[data-cat="frontier"] { --sig: #ffb020; }
+.cab[data-cat="systems"]  { --sig: #4d7cfe; }
+.cab[data-cat="puzzle"]   { --sig: #38d9a9; }
+.cab[data-cat="action"]   { --sig: #ff5a5a; }
+.cab[data-cat="casino"]   { --sig: #ff5aa8; }
+.cab[data-cat="reflex"]   { --sig: #c07bff; }
+.cab[data-cat="versus"]   { --sig: #46d6ff; }
+
+.cab:hover, .cab:focus-within {
+  transform: translateY(calc(-3px * var(--mo)));
+  border-color: color-mix(in oklab, var(--sig) 55%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in oklab, var(--sig) 22%, transparent),
+    0 14px 40px -18px color-mix(in oklab, var(--sig) 70%, transparent);
+}
+
+.cab-marquee {
+  padding: 9px 12px 8px;
+  border-bottom: 1px solid var(--line);
+  background: linear-gradient(180deg, color-mix(in oklab, var(--sig) 14%, transparent), transparent);
+}
+.cab-marquee span {
+  display: block;
+  font: 600 12px/1.2 var(--mono);
+  letter-spacing: 0.09em;
+  color: var(--sig);
+  text-shadow: 0 0 14px color-mix(in oklab, var(--sig) 45%, transparent);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The screen. Dark inset, category glow, scanlines, and the blurb on top. */
+.cab-screen {
+  position: relative;
+  aspect-ratio: 4 / 3;
+  background:
+    radial-gradient(120% 90% at 50% 118%, color-mix(in oklab, var(--sig) 26%, transparent), transparent 66%),
+    #05060a;
+  overflow: hidden;
+}
+.cab-screen::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.30) 0 1px, transparent 1px 3px);
+  opacity: 0.55;
+  pointer-events: none;
+}
+/* Three bars that stand in for whatever the game is: they drift on hover, so
+   the wall has motion without twenty-nine canvases running behind it. */
+.cab-art {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 9px;
+  padding: 0 22px 20px;
+}
+.cab-art i {
+  flex: 1;
+  border-radius: 3px 3px 0 0;
+  background: linear-gradient(180deg, var(--sig), color-mix(in oklab, var(--sig) 15%, transparent));
+  opacity: 0.55;
+  transition: height var(--dur-2) var(--ease-out), opacity var(--dur-2) var(--ease);
+}
+.cab-art i:nth-child(1) { height: 32%; }
+.cab-art i:nth-child(2) { height: 58%; }
+.cab-art i:nth-child(3) { height: 44%; }
+.cab:hover .cab-art i, .cab:focus-within .cab-art i { opacity: 0.95; }
+.cab:hover .cab-art i:nth-child(1) { height: 55%; }
+.cab:hover .cab-art i:nth-child(2) { height: 34%; }
+.cab:hover .cab-art i:nth-child(3) { height: 68%; }
+
+.cab-blurb {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  padding: 14px 13px;
+  display: flex;
+  align-items: center;
+  font-size: 11.5px;
+  line-height: 1.48;
+  color: var(--text);
+  background: linear-gradient(180deg, rgba(5, 6, 10, 0.90), rgba(5, 6, 10, 0.98));
+  opacity: 0;
+  transform: translateY(6px);
+  transition: opacity var(--dur-1) var(--ease), transform var(--dur-2) var(--ease-out);
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+.cab:hover .cab-blurb, .cab:focus-within .cab-blurb { opacity: 1; transform: none; }
+/* Top of the screen, on its own chip. Sitting at the bottom it lay across the
+   art bars in almost the same colour and could not be read at all. */
+.cab-tag {
+  position: absolute;
+  left: 8px;
+  top: 8px;
+  right: 8px;
+  z-index: 2;
+  padding: 4px 7px;
+  border-radius: 5px;
+  background: rgba(5, 6, 10, 0.72);
+  font-size: 9.5px;
+  letter-spacing: 0.03em;
+  color: var(--dim);
+  pointer-events: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cab:hover .cab-tag, .cab:focus-within .cab-tag { opacity: 0; }
+
+.cab-panel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 11px 4px;
+}
+.cab-panel .btn {
+  border-color: color-mix(in oklab, var(--sig) 45%, transparent);
+  color: color-mix(in oklab, var(--sig) 85%, var(--text));
+  padding: 7px 14px;
+}
+.cab-panel .btn:hover { background: color-mix(in oklab, var(--sig) 16%, transparent); }
+.cab-best { font-size: 10px; color: var(--dim); }
+.cab-keys {
+  margin: 0;
+  padding: 0 11px 11px;
+  font-size: 9.5px;
+  line-height: 1.45;
+  color: var(--faint);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Filter bar as a control panel rather than a row of pills. */
+.cat-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 20px;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: linear-gradient(180deg, var(--panel), var(--panel-2));
+}
+.cat-bar .btn { border-color: transparent; background: transparent; }
+.cat-bar .btn:hover { background: var(--panel-2); border-color: var(--line); }
+.cat-bar .btn[aria-pressed="true"] {
+  background: color-mix(in oklab, var(--accent) 14%, transparent);
+  border-color: color-mix(in oklab, var(--accent) 45%, transparent);
+  color: var(--accent);
+}
+
+/* The cabinet the running game sits in. */
+.cab-live {
+  --sig: var(--accent);
+  margin-top: 26px;
+  border: 1px solid color-mix(in oklab, var(--sig) 40%, var(--line));
+  border-radius: 16px;
+  background: linear-gradient(180deg, var(--panel), var(--panel-2));
+  box-shadow: 0 0 0 1px color-mix(in oklab, var(--sig) 14%, transparent),
+    0 30px 80px -40px color-mix(in oklab, var(--sig) 80%, transparent);
+  overflow: hidden;
+}
+.cab-live[data-cat="frontier"] { --sig: #ffb020; }
+.cab-live[data-cat="systems"]  { --sig: #4d7cfe; }
+.cab-live[data-cat="puzzle"]   { --sig: #38d9a9; }
+.cab-live[data-cat="action"]   { --sig: #ff5a5a; }
+.cab-live[data-cat="casino"]   { --sig: #ff5aa8; }
+.cab-live[data-cat="reflex"]   { --sig: #c07bff; }
+.cab-live[data-cat="versus"]   { --sig: #46d6ff; }
+.cab-live-marquee {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 13px 16px;
+  border-bottom: 1px solid var(--line);
+  background: linear-gradient(180deg, color-mix(in oklab, var(--sig) 16%, transparent), transparent);
+}
+.cab-live-marquee > span:first-child {
+  font: 600 15px var(--mono);
+  letter-spacing: 0.1em;
+  color: var(--sig);
+  text-shadow: 0 0 20px color-mix(in oklab, var(--sig) 50%, transparent);
+}
+.cab-live-tag { font-size: 11px; color: var(--faint); }
+.cab-live-marquee .btn { margin-left: auto; }
+.cab-live-bezel { padding: clamp(14px, 2.4vw, 26px); background: #05060a; }
+.cab-live-keys {
+  margin: 0;
+  padding: 11px 16px 13px;
+  font-size: 11px;
+  color: var(--faint);
+  border-top: 1px solid var(--line);
+}
+
+:root.light .cab { background: linear-gradient(180deg, #fff, var(--panel-2)); }
+:root.light .cab-screen { background: radial-gradient(120% 90% at 50% 118%, color-mix(in oklab, var(--sig) 24%, transparent), transparent 66%), #12151d; }
+:root.light .cab-blurb { background: linear-gradient(180deg, rgba(255,255,255,.94), rgba(255,255,255,.99)); color: var(--text); }
+:root.light .cab-tag { background: rgba(255,255,255,.82); color: var(--dim); }
+:root.light .cab-live-bezel { background: #12151d; }
+
+@media (max-width: 520px) {
+  #arcade-grid { grid-template-columns: repeat(auto-fill, minmax(min(100%, 156px), 1fr)); gap: 10px; }
+  .cab-keys { display: none; }
+}
+
+/* ==========================================================================
    Top navigation. Glass, scroll-aware: it hides on the way down and comes
    back on the way up, which is the only nav behaviour that stays out of the
    way of a scroll-driven page without ever being unreachable.
@@ -1101,12 +1341,16 @@ section { scroll-margin-top: 62px; }
   --good: #0a7f5f;
   color-scheme: light;
 }
-:root.light #gl { opacity: 0.16; filter: saturate(0.4) contrast(1.4); }
+/* No opacity hack. The flight renders a real blueprint palette in light mode
+   (see uDay in the sky shader and uInk on the vehicle), so it runs at full
+   strength here exactly as it does at night. */
 :root.light body { background: var(--ink); }
 /* Every hardcoded near-black in the sheet has to be answered here, or light
    mode is a grey page with a dark wash over it. The scrims are the big one:
    they exist to protect text from the flight, and in light mode they have to
    do that with paper rather than with shadow. */
+:root.light #ventures,
+:root.light #vision,
 :root.light #signal,
 :root.light #work,
 :root.light #rhythm,

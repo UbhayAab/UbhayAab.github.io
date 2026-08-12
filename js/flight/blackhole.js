@@ -41,6 +41,9 @@ uniform float u_diskOuter;
 uniform float u_intensity;    // 0..1 fade in as the hole is approached
 uniform float u_diskTilt;
 uniform float u_flare;        // warp-exit bloom, 0..1
+uniform float u_day;          // 0 = the void, 1 = blueprint on paper
+uniform vec2  u_center;       // exit-streak convergence, matched to the warp pass
+uniform vec2  u_shift;        // pans the whole hole off centre, in ndc units
 
 out vec4 outColor;
 
@@ -129,7 +132,11 @@ float diskTexture(vec2 q, float r) {
 }
 
 void main() {
-  vec2 uv = (gl_FragCoord.xy - 0.5 * u_res) / u_res.y;
+  // Shifted off centre by the same composition offset the rest of the flight
+  // uses, so the hole sits in the right of the frame and the text column keeps
+  // its ground. Shifting the ray field rather than the camera means the
+  // geodesics are untouched: it is a pan, not a distortion.
+  vec2 uv = (gl_FragCoord.xy - 0.5 * u_res) / u_res.y - u_shift;
 
   vec3 dirWorld = normalize(u_camBasis * vec3(uv * u_fov, -1.0));
 
@@ -258,8 +265,11 @@ void main() {
   // frame to flat white for several hundred pixels of scroll. Here the same
   // energy just rolls off.
   if (u_flare > 0.001) {
-    float r = length(uv);
-    float ang = atan(uv.y, uv.x);
+    // Same convergence point the warp pass uses, so the handover between the
+    // two is one continuous tunnel rather than a cut to a second one.
+    vec2 fd = uv - u_center;
+    float r = length(fd);
+    float ang = atan(fd.y, fd.x);
     const float LANES = 220.0;
     const float TAU = 6.28318530718;
     float laneF = ang / TAU * LANES;
@@ -277,13 +287,28 @@ void main() {
       streaks += mix(vec3(0.5, 0.7, 1.0), vec3(1.0, 0.95, 0.9), u_flare * 0.5)
         * exp(-(d * d) / 0.0016) * exp(-(arc * arc) / 0.000009) * (0.3 + h);
     }
-    colour += streaks * u_flare * 1.05;
-    colour += vec3(0.28, 0.46, 1.0) * exp(-r * 3.2) * u_flare * u_flare * 0.7;
+    // Two thirds of what it was. At full strength the exit washed the frame
+    // pale enough that the arcade headline sitting on top of it lost most of
+    // its contrast, and a transition that eats the copy is not a transition.
+    colour += streaks * u_flare * 0.70;
+    colour += vec3(0.28, 0.46, 1.0) * exp(-r * 3.2) * u_flare * u_flare * 0.42;
   }
 
   // Tone map.
   colour = colour / (1.0 + colour * 0.72);
   colour = pow(max(colour, 0.0), vec3(0.4545));
+
+  // Blueprint. The void becomes paper and the disk becomes ink drawn on it,
+  // so a light page stays a light page all the way to the last section. The
+  // shadow of the hole is still the darkest thing in frame, which is the one
+  // thing about this image that has to survive any palette.
+  if (u_day > 0.001) {
+    float ink = clamp(dot(colour, vec3(0.30, 0.59, 0.11)), 0.0, 1.0);
+    vec3 paper = vec3(0.91, 0.925, 0.96) - vec3(0.86, 0.84, 0.80) * pow(ink, 0.62);
+    // Keep a little of the disk's warmth so it still reads as a disk of gas.
+    paper = mix(paper, paper * vec3(1.06, 0.98, 0.90), smoothstep(0.15, 0.7, ink));
+    colour = mix(colour, paper, u_day * u_intensity);
+  }
 
   // Faint grain to break up banding in the large dark areas. Applied after
   // gamma, so it stays subtle instead of being lifted with everything else.
