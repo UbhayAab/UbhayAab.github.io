@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ubhay Anand Vatsa - Portfolio</title>
+<meta name="description" content="Systems Ubhay Anand Vatsa built and runs at Jarurat Care Foundation, shown working on synthetic data.">
+<meta name="robots" content="noindex">
+<style>@font-face{font-family:'Inter';font-weight:400;font-display:swap;src:url(fonts/Inter-Regular.woff2) format('woff2');}@font-face{font-family:'Inter';font-weight:500;font-display:swap;src:url(fonts/Inter-Medium.woff2) format('woff2');}@font-face{font-family:'Inter';font-weight:600;font-display:swap;src:url(fonts/Inter-SemiBold.woff2) format('woff2');}@font-face{font-family:'Inter Display';font-weight:800;font-display:swap;src:url(fonts/InterDisplay-ExtraBold.woff2) format('woff2');}
+:root { --ink:#111827; --body:#1f2937; --muted:#374151; --grey:#4b5563; --faint:#6b7280; --rule:#e5e7eb;
+        --panel:#f8f9fa; --link:#1e4ed8; --bg:#ffffff; }
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--bg); color: var(--body); font-family: 'Inter', system-ui, sans-serif;
+       font-size: 16px; line-height: 1.55; }
+a { color: var(--link); }
+.wrap { max-width: 1120px; margin: 0 auto; padding: 40px 16px 56px; }
+h1 { font-family: 'Inter Display','Inter',sans-serif; font-weight: 800; font-size: clamp(30px, 6vw, 44px); line-height: 1.08;
+     letter-spacing: -0.015em; color: var(--ink); margin: 0; }
+.title { margin-top: 10px; font-size: 14px; font-weight: 500; letter-spacing: .085em; text-transform: uppercase; color: var(--grey); }
+.contact { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--rule); font-size: 14px; color: var(--grey);
+           display: flex; flex-wrap: wrap; gap: 6px 18px; }
+.contact a { color: var(--ink); text-decoration: underline dotted #999; text-underline-offset: 3px; }
+.actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; }
+.btn { display: inline-block; padding: 9px 14px; border: 1px solid var(--rule); border-radius: 6px; color: var(--ink);
+       text-decoration: none; font-weight: 600; font-size: 14px; background: #fff; }
+.btn.primary { background: var(--ink); color: #fff; border-color: var(--ink); }
+.note { margin-top: 22px; background: var(--panel); border-left: 3px solid var(--ink); padding: 12px 16px; color: var(--muted);
+        font-size: 15px; }
+.note strong { color: #000; font-weight: 600; }
+h2 { font-size: 12px; font-weight: 700; letter-spacing: .13em; text-transform: uppercase; color: var(--ink);
+     margin: 36px 0 0; padding-bottom: 8px; border-bottom: 1px solid #d1d5db; }
+.grid { display: grid; grid-template-columns: 1fr; gap: 28px; margin-top: 20px; }
+@media (min-width: 900px) { .grid { grid-template-columns: 1fr 1fr; gap: 32px 28px; } }
+.card { min-width: 0; }
+.card .shot { border: 1px solid var(--rule); border-radius: 8px; overflow: hidden; background: var(--panel); }
+.card img { display: block; width: 100%; height: auto; }
+.ch { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; margin-top: 12px; }
+.ch .n { font-size: 18px; font-weight: 600; color: var(--ink); }
+.ch .k { font-size: 14px; color: var(--faint); }
+.card p { margin: 6px 0 0; color: var(--muted); font-size: 15px; }
+.links { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 14px; font-weight: 500; }
+.links .none { color: var(--faint); font-weight: 400; }
+footer { margin-top: 44px; padding-top: 14px; border-top: 1px solid var(--rule); font-size: 13px; color: var(--faint); }
+</style></head>
+<body><main class="wrap">
+<h1>Ubhay Anand Vatsa</h1>
+<div class="title">Chief of Staff | Category &amp; Supply Growth | AI Systems Builder</div>
+<div class="contact"><span>Bengaluru, India</span><a href="mailto:ubhayvatsaanand@gmail.com">ubhayvatsaanand@gmail.com</a>
+<a href="https://linkedin.com/in/ubhay-anand-vatsa">LinkedIn</a></div>
+<div class="actions"><a class="btn primary" href="Ubhay_Anand_Portfolio.pdf">Portfolio (PDF)</a></div>
+<div class="note"><strong>Jarurat Care Foundation, a cancer care NGO in India. I built or rebuilt, deployed and run these systems with a fleet of AI coding agents.</strong> Every screenshot shows invented demo data from a local build, or a public page. No patient, family, volunteer or candidate data appears anywhere in this portfolio.</div>
+<h2>Systems I built and run</h2>
+<div class="grid">
+<article class="card" id="pn">
+  <div class="shot"><img src="img/pn.jpg" width="1600" height="1000" loading="lazy" alt="Patient Navigator: Care operations platform"></div>
+  <div class="ch"><span class="n">Patient Navigator</span><span class="k">Care operations platform</span></div>
+  <p>The calling and care-navigation platform every patient contact at the foundation runs through: about 670 active patients, risk-flagged call queues and one record per family.</p><p>AI summaries of medical reports on a single timeline, consent-gated call recording with AI transcripts, and role-based access over 180+ database migrations under row-level security.</p>
+  <div class="links"><span class="none">Internal tool, sign-in only</span></div>
+</article>
+<article class="card" id="hopebot">
+  <div class="shot"><img src="img/hopebot.jpg" width="1600" height="1000" loading="lazy" alt="HopeBot: WhatsApp care bot and staff console"></div>
+  <div class="ch"><span class="n">HopeBot</span><span class="k">WhatsApp care bot and staff console</span></div>
+  <p>A WhatsApp care bot on the Cloud API, live for all families: sign-up with consent, reports filed straight into the patient record and AI report reading. A treatment roadmap PDF, on a teammate&#x27;s engine, still needs a GI oncologist&#x27;s sign-off.</p><p>Built and run on a teammate&#x27;s conversation design. Staff work conversations, handoffs and messaging rules from this console. 1,280+ automated tests.</p>
+  <div class="links"><span class="none">Internal tool, sign-in only</span></div>
+</article>
+<article class="card" id="dek">
+  <div class="shot"><img src="img/dek.jpg" width="1600" height="1000" loading="lazy" alt="Dek: Team chat"></div>
+  <div class="ch"><span class="n">Dek</span><span class="k">Team chat</span></div>
+  <p>A Slack-style workspace for the whole team: channels, threads, files, push notifications and sign-in codes by email.</p><p>Moved the organization over live with a rollback path. Load-tested at 300 users for an hour with zero lost messages, and a 500-user reconnect burst.</p>
+  <div class="links"><span class="none">Internal tool, sign-in only</span></div>
+</article>
+<article class="card" id="arc">
+  <div class="shot"><img src="img/arc.jpg" width="1600" height="1000" loading="lazy" alt="Arc: Hiring and people operations"></div>
+  <div class="ch"><span class="n">Arc</span><span class="k">Hiring and people operations</span></div>
+  <p>Hiring to exit in one place: HR publishes roles and assignments, candidates apply on a public page, AI scores each submission and a person reviews it separately.</p><p>Then onboarding, 10-day performance cycles and leave. Under a 50-user load test, p95 page load was cut from 4.5 s to 552 ms.</p>
+  <div class="links"><span class="none">Internal tool, sign-in only</span></div>
+</article>
+<article class="card" id="campaign">
+  <div class="shot"><img src="img/campaign.jpg" width="1600" height="1000" loading="lazy" alt="Campaign Studio: Self-hosted email platform"></div>
+  <div class="ch"><span class="n">Campaign Studio</span><span class="k">Self-hosted email platform</span></div>
+  <p>Campaign and transactional email on AWS SES, rebuilt from a teammate&#x27;s first version to move outreach in-house from third-party senders.</p><p>Ran the Horizon VII webinar campaign to 65,000+ clinicians with lists graded by mailbox verification and an automatic send circuit breaker.</p>
+  <div class="links"><span class="none">Internal tool, sign-in only</span></div>
+</article>
+<article class="card" id="mail">
+  <div class="shot"><img src="img/mail.jpg" width="1600" height="1000" loading="lazy" alt="Jarurat Mail: Team webmail and calendar"></div>
+  <div class="ch"><span class="n">Jarurat Mail</span><span class="k">Team webmail and calendar</span></div>
+  <p>Webmail and calendar for the team on the same platform: shared mailboxes, templates in every composer, AI drafting and attachments shrunk in the browser.</p><p>Five themes shared with the other products, checked for contrast in every one.</p>
+  <div class="links"><span class="none">Internal tool, sign-in only</span></div>
+</article>
+<article class="card" id="fixboard">
+  <div class="shot"><img src="img/fixboard.jpg" width="1600" height="1000" loading="lazy" alt="Fixboard: Team issue board"></div>
+  <div class="ch"><span class="n">Fixboard</span><span class="k">Team issue board</span></div>
+  <p>Anyone on the team reports a problem in any product, with screenshots or by voice; photos are stripped of location data on upload.</p><p>Every issue ends Fixed with a proof screenshot and a step by step how-to, Done differently, or Declined with a reason.</p>
+  <div class="links"><span class="none">Internal tool, not linked</span></div>
+</article>
+<article class="card" id="refer">
+  <div class="shot"><img src="img/refer.jpg" width="1600" height="1000" loading="lazy" alt="GI Cancer Referral Form: Public patient referrals"></div>
+  <div class="ch"><span class="n">GI Cancer Referral Form</span><span class="k">Public patient referrals</span></div>
+  <p>A bilingual (Hindi and English) form doctors share with GI cancer patients and their families.</p><p>Each referral lands as a new lead in Patient Navigator through a gated database function, with the exact consent wording the family agreed to stored alongside it.</p>
+  <div class="links"><a class="" href="https://jarurat-care.pages.dev/gi/en/">Live, English</a><a class="" href="https://jarurat-care.pages.dev/gi">Hindi</a></div>
+</article>
+<article class="card" id="hope">
+  <div class="shot"><img src="img/hope.jpg" width="1600" height="1000" loading="lazy" alt="HOPE Circle: Support group router"></div>
+  <div class="ch"><span class="n">HOPE Circle</span><span class="k">Support group router</span></div>
+  <p>A trilingual public page that routes patients and caregivers into the right WhatsApp support group.</p><p>Six GI cancer groups, in English, Hindi and Marathi.</p>
+  <div class="links"><a class="" href="https://ubhayaab.github.io/JCF/">Live</a></div>
+</article>
+<article class="card" id="voice">
+  <div class="shot"><img src="img/voice.jpg" width="1600" height="1000" loading="lazy" alt="Saturday Wellbeing Room: Caregiver circles, audio in testing"></div>
+  <div class="ch"><span class="n">Saturday Wellbeing Room</span><span class="k">Caregiver circles, audio in testing</span></div>
+  <p>The page for the foundation&#x27;s weekly caregiver wellbeing circle. Until live audio is switched on, it shows the next session and a Hindi and English WhatsApp fallback.</p><p>Session reminders are held until consent checks are complete.</p>
+  <div class="links"><a class="" href="https://jcf-voice.pages.dev">Public page</a></div>
+</article>
+<article class="card" id="agentchat">
+  <div class="shot"><img src="img/agentchat.jpg" width="1600" height="1000" loading="lazy" alt="Agent Chat: My AI operations setup, not a JCF system"></div>
+  <div class="ch"><span class="n">Agent Chat</span><span class="k">My AI operations setup, not a JCF system</span></div>
+  <p>The coordination layer behind all of the above: a fleet of AI coding agents (Claude Code, Codex) that claim shared resources before touching them and wake when tagged.</p><p>Progress and questions reach me on a phone portal. Rendered here on invented state.</p>
+  <div class="links"><span class="none">Internal tool, sign-in only</span></div>
+</article></div>
+<footer>Ubhay Anand Vatsa. Screens are from local demo builds with invented data, or from public pages.</footer>
+</main></body></html>
